@@ -12,6 +12,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .json::<HashMap<String, String>>()
         .await?;
     println!("{:#?}", resp);
+
+    let my_str = include_str!("gitlab_group_mrs_query.graphql");
+    print!("{my_str}");
+
     Ok(())
 }
 
