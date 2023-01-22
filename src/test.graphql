@@ -1,6 +1,0 @@
-query ($group_full_path: ID!) {
-  group(fullPath: $group_full_path) {
-    id
-    name
-  }
-}

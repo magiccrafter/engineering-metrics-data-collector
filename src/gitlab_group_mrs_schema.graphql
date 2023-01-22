@@ -1,0 +1,84 @@
+schema {
+  query: Query
+}
+
+type Query {
+  queryComplexity: QueryComplexity!
+  group(fullPath: ID!): Group
+}
+
+type QueryComplexity {
+  score: Int
+  limit: Int
+}
+
+type Group {
+  id: ID!
+  name: String!
+  mergeRequests(
+    includeSubgroups: Boolean!
+    first: Int!
+    updatedAfter: Time!
+    sort: String!
+  ): MergeRequestConnection!
+}
+
+type MergeRequestConnection {
+  nodes: [MergeRequest]
+  pageInfo: PageInfo!
+}
+
+type MergeRequest {
+  id: ID!
+  title: String!
+  draft: Boolean!
+  webUrl: String!
+  labels: LabelConnection
+  approved: Boolean!
+  approvedBy: UserCoreConnection
+  author: MergeRequestAuthor!
+  diffStatsSummary: DiffStatsSummary
+  mergeUser: UserCore
+  createdAt: String!
+  updatedAt: String!
+  mergedAt: String
+  projectId: Int!
+}
+
+type LabelConnection {
+  nodes: [Label]
+}
+
+type Label {
+  title: String!
+}
+
+type UserCoreConnection {
+  nodes: [UserCore]
+}
+
+type UserCore {
+  id: ID!
+  username: String!
+}
+
+type MergeRequestAuthor {
+  id: ID!
+  username: String!
+}
+
+type DiffStatsSummary {
+  additions: Int!
+  deletions: Int!
+  changes: Int!
+  fileCount: Int!
+}
+
+type PageInfo {
+  startCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  endCursor: String
+}
+
+scalar Time

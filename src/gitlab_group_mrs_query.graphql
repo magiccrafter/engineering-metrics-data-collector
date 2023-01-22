@@ -1,4 +1,4 @@
-query ($group_full_path: ID!, $updated_after: Time!, $updated_before: Time!) {
+query GroupMergeReqs($group_full_path: ID!, $updated_after: Time!, $after: String) {
   queryComplexity {
     score
     limit
@@ -7,9 +7,10 @@ query ($group_full_path: ID!, $updated_after: Time!, $updated_before: Time!) {
     id
     name
     mergeRequests(
-      first: 50
+      includeSubgroups: true
+      first: 10
+      after: $after
       updatedAfter: $updated_after
-      updatedBefore: $updated_before
       sort: CREATED_DESC
     ) {
       nodes {
@@ -39,20 +40,14 @@ query ($group_full_path: ID!, $updated_after: Time!, $updated_before: Time!) {
           changes
           fileCount
         }
-        createdAt
-        updatedAt
-        mergedAt
         mergeUser {
           id
           username
         }
+        createdAt
+        updatedAt
+        mergedAt
         projectId
-        commenters {
-          nodes {
-            id
-            username
-          }
-        }
       }
       pageInfo {
         endCursor
