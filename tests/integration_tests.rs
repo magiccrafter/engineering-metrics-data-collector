@@ -1,4 +1,4 @@
-use testcontainers::{clients, core::WaitFor, images, images::generic::GenericImage};
+use testcontainers::{clients};
 
 mod postgres_container;
 
