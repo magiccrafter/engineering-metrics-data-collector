@@ -28,15 +28,15 @@ async fn should_successfully_select_data_from_database() {
         .unwrap();
 
     let mut conn = pool.acquire().await.unwrap();
-    let row = sqlx::query("SELECT 1 + 1 AS result")
+    let result = sqlx::query("SELECT 1 + 1 AS result")
         .execute(&mut conn)
         .await
         .unwrap();
-    assert_eq!(row.rows_affected(), 1);
+    assert_eq!(result.rows_affected(), 1);
 
-    let row2 = sqlx::query("SELECT 1 + 1 AS result")
+    let row = sqlx::query("SELECT 1 + 1 AS result")
         .fetch_one(&mut conn)
         .await
         .unwrap();
-    assert_eq!(row2.get::<i32, _>("result"), 2);
+    assert_eq!(row.get::<i32, _>("result"), 2);
 }     
