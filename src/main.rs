@@ -1,3 +1,5 @@
+mod store;
+
 use graphql_client::{reqwest::post_graphql, GraphQLQuery};
 use serde::Deserialize;
 use serde::Serialize;
@@ -9,6 +11,12 @@ use time::OffsetDateTime;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenv::dotenv().ok();
+
+    if let Err(_) = env::var("DATABASE_URL") {
+        panic!("DATABASE_URL is not set.");
+    }
+
     let qraphql_query = include_str!("gitlab_group_mrs_query.graphql");
     println!("{qraphql_query}");
 
@@ -66,15 +74,17 @@ struct GroupMergeReqs;
 struct Issue {
     issue_id: String,
     issue_title: String,
-    mr_id: String,
     project_id: String,
     // `OffsetDateTime`'s default serialization format is not standard.
     // https://docs.rs/serde_with/latest/serde_with/guide/serde_as_transformations/index.html#well-known-time-formats-for-offsetdatetime
     #[serde_as(as = "Rfc3339")]
     created_at: OffsetDateTime,
+    created_by: String,
+    #[serde_as(as = "Rfc3339")]
+    updated_at: OffsetDateTime,
+    updated_by: String,
     #[serde_as(as = "Rfc3339")]
     closed_at: OffsetDateTime,
-    created_by: String,
     closed_by: String,
 }
 

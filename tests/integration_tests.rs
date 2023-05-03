@@ -1,5 +1,6 @@
-use testcontainers::clients;
+use sqlx::postgres::PgPoolOptions;
 use sqlx::Row;
+use testcontainers::clients;
 
 mod postgres_container;
 
@@ -20,10 +21,13 @@ async fn should_successfully_select_data_from_database() {
     let image = postgres_container::Postgres::default();
     let node = docker.run(image);
     let port = node.get_host_port_ipv4(5432);
-    
-    let pool = sqlx::postgres::PgPoolOptions::new()
+
+    let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&format!("postgres://postgres:postgres@localhost:{}/postgres", port))
+        .connect(&format!(
+            "postgres://postgres:postgres@localhost:{}/postgres",
+            port
+        ))
         .await
         .unwrap();
 
@@ -39,4 +43,4 @@ async fn should_successfully_select_data_from_database() {
         .await
         .unwrap();
     assert_eq!(row.get::<i32, _>("result"), 2);
-}     
+}
