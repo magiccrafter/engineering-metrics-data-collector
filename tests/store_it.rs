@@ -1,4 +1,4 @@
-use engineering_metrics_data_manager::store::Store;
+use engineering_metrics_data_collector::store::Store;
 use testcontainers::clients;
 mod postgres_container;
 

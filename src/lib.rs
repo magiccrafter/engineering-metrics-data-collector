@@ -2,3 +2,8 @@
 ///
 /// The store is responsible for managing the database connection pool and providing access to the database.
 pub mod store;
+
+/// Defines the clients for the 3rd party services.
+/// 
+/// The clients contain the logic for interacting with the 3rd party HTTP services (GraphQL & RESTFul).
+pub mod client;

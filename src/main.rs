@@ -1,4 +1,5 @@
 mod store;
+use engineering_metrics_data_collector::client;
 
 use graphql_client::{reqwest::post_graphql, GraphQLQuery};
 use serde::Deserialize;
@@ -30,26 +31,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut after_pointer_token: core::option::Option<String> = None;
 
     while has_more_merge_requests {
-        let variables = group_merge_reqs::Variables {
-            group_full_path: group_full_path.clone(),
-            updated_after: updated_after.clone(),
-            after: after_pointer_token.clone(),
-        };
-
-        let client = reqwest::Client::builder()
-            .user_agent("engineering-metrics-data-manager")
-            .default_headers(
-                std::iter::once((
-                    reqwest::header::AUTHORIZATION,
-                    reqwest::header::HeaderValue::from_str(&authorization_header).unwrap(),
-                ))
-                .collect(),
-            )
-            .build()?;
-        let response = post_graphql::<GroupMergeReqs, _>(&client, endpoint, variables).await?;
-
-        let response_data = response.data.expect("missing response data");
-        let group_data = response_data.group.unwrap();
+        let group_data = client::gitlab_graphql_client::GitlabGraphQLClient::new(&authorization_header.clone())
+            .await
+            .fetch_group_merge_requests(endpoint, &group_full_path.clone(), &updated_after.clone(), after_pointer_token.clone())
+            .await?;
         println!("group_data: {:?}", &group_data);
         after_pointer_token = group_data.merge_requests.page_info.end_cursor;
         println!("after_pointer_token: {:?}", &after_pointer_token);
@@ -59,15 +44,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-type Time = String;
-#[derive(GraphQLQuery)]
-#[graphql(
-    schema_path = "src/gitlab_group_mrs_schema.graphql",
-    query_path = "src/gitlab_group_mrs_query.graphql",
-    response_derives = "Debug"
-)]
-struct GroupMergeReqs;
 
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug)]

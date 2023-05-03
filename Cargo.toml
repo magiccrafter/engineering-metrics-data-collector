@@ -1,5 +1,5 @@
 [package]
-name = "engineering-metrics-data-manager"
+name = "engineering-metrics-data-collector"
 version = "0.1.0"
 edition = "2021"
 

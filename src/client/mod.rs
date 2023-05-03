@@ -1,0 +1,1 @@
+pub mod gitlab_graphql_client;
