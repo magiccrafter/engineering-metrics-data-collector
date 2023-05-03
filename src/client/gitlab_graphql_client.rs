@@ -6,7 +6,7 @@ pub struct GitlabGraphQLClient {
 }
 
 impl GitlabGraphQLClient {
-    const ENDPOINT: &'static str = "https://gitlab.com/api/graphql";
+    const ENDPOINT: &str = "https://gitlab.com/api/graphql";
 
     pub async fn new(authorization_header: &str) -> Self {
         let client = reqwest::Client::builder()
