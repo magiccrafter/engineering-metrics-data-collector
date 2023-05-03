@@ -21,7 +21,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let qraphql_query = include_str!("gitlab_group_mrs_query.graphql");
     println!("{qraphql_query}");
 
-    let endpoint = "https://gitlab.com/api/graphql";
     let authorization_header = env::var("EM_TOKEN").unwrap().to_string();
     println!("{authorization_header}");
     let updated_after = env::var("UPDATED_AFTER").unwrap().to_string();
@@ -33,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while has_more_merge_requests {
         let group_data = client::gitlab_graphql_client::GitlabGraphQLClient::new(&authorization_header.clone())
             .await
-            .fetch_group_merge_requests(endpoint, &group_full_path.clone(), &updated_after.clone(), after_pointer_token.clone())
+            .fetch_group_merge_requests(&group_full_path.clone(), &updated_after.clone(), after_pointer_token.clone())
             .await?;
         println!("group_data: {:?}", &group_data);
         after_pointer_token = group_data.merge_requests.page_info.end_cursor;

@@ -6,6 +6,8 @@ pub struct GitlabGraphQLClient {
 }
 
 impl GitlabGraphQLClient {
+    const ENDPOINT: &'static str = "https://gitlab.com/api/graphql";
+
     pub async fn new(authorization_header: &str) -> Self {
         let client = reqwest::Client::builder()
             .user_agent("engineering-metrics-data-collector")
@@ -24,7 +26,6 @@ impl GitlabGraphQLClient {
 
     pub async fn fetch_group_merge_requests(
         &self,
-        endpoint: &str,
         group_full_path: &str,
         updated_after: &str,
         after_pointer_token: Option<String>,
@@ -35,7 +36,7 @@ impl GitlabGraphQLClient {
             after: after_pointer_token,
         };
 
-        let response = post_graphql::<GroupMergeReqs, _>(&self.client, endpoint, variables).await?;
+        let response = post_graphql::<GroupMergeReqs, _>(&self.client, GitlabGraphQLClient::ENDPOINT, variables).await?;
 
         let response_data = response.data.expect("missing response data");
         let group_data = response_data.group.unwrap();
