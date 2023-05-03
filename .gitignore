@@ -16,3 +16,5 @@ Cargo.lock
 
 # Used for environment variables
 .env
+
+.vscode
