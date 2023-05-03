@@ -100,7 +100,7 @@ struct MergeRequest {
 
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug)]
-struct ClosedIssuedOnMerge {
+struct ClosedIssueOnMerge {
     issue_id: String,
     mr_id: String,
     mr_title: String,
