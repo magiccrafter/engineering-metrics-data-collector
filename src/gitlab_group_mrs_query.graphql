@@ -45,9 +45,10 @@ query GroupMergeReqs($group_full_path: ID!, $updated_after: Time!, $after: Strin
           username
         }
         createdAt
-        updatedAt
         mergedAt
+        updatedAt
         projectId
+        state
       }
       pageInfo {
         endCursor

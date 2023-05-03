@@ -77,3 +77,31 @@ struct Issue {
     created_by: String,
     closed_by: String,
 }
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug)]
+struct MergeRequest {
+    mr_id: String,
+    mr_title: String,
+    project_id: String,
+    // `OffsetDateTime`'s default serialization format is not standard.
+    // https://docs.rs/serde_with/latest/serde_with/guide/serde_as_transformations/index.html#well-known-time-formats-for-offsetdatetime
+    #[serde_as(as = "Rfc3339")]
+    created_at: OffsetDateTime,
+    created_by: String,
+    #[serde_as(as = "Rfc3339")]
+    merged_at: OffsetDateTime,
+    merged_by: String,
+    #[serde_as(as = "Rfc3339")]
+    updated_at: OffsetDateTime,
+    updated_by: String,
+    state: String,
+}
+
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug)]
+struct ClosedIssuedOnMerge {
+    issue_id: String,
+    mr_id: String,
+    mr_title: String,
+}

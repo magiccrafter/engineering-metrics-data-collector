@@ -43,6 +43,7 @@ type MergeRequest {
   updatedAt: String!
   mergedAt: String
   projectId: Int!
+  state: MergeRequestState!
 }
 
 type LabelConnection {
@@ -79,6 +80,13 @@ type PageInfo {
   hasNextPage: Boolean!
   hasPreviousPage: Boolean!
   endCursor: String
+}
+
+enum MergeRequestState {
+  opened
+  closed
+  locked
+  merged
 }
 
 scalar Time
