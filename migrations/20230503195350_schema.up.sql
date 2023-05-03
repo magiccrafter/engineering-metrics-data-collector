@@ -1,35 +1,37 @@
--- Add up migration script here
-CREATE SCHEMA engineering_metrics;
+-- add up migration script here
+create schema engineering_metrics;
 
-CREATE TABLE engineering_metrics.issues (
-    issue_id VARCHAR PRIMARY KEY,
-    issue_title VARCHAR NOT NULL,
-    project_id VARCHAR NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    created_by VARCHAR NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
-    updated_by VARCHAR NOT NULL,
-    closed_at TIMESTAMPTZ NOT NULL,
-    closed_by VARCHAR NOT NULL
+create table engineering_metrics.issues (
+    issue_id varchar not null,
+    issue_title varchar not null,
+    project_id varchar not null,
+    created_at timestamptz not null,
+    created_by varchar not null,
+    updated_at timestamptz not null,
+    updated_by varchar not null,
+    closed_at timestamptz not null,
+    closed_by varchar not null,
+    primary key (issue_id)
 );
 
-CREATE TABLE engineering_metrics.merge_requests (
-    mr_id VARCHAR PRIMARY KEY,
-    mr_title VARCHAR NOT NULL,
-    project_id VARCHAR NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    created_by VARCHAR NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
-    updated_by VARCHAR NOT NULL,
-    merged_at TIMESTAMPTZ NOT NULL,
-    merged_by VARCHAR NOT NULL,
-    mr_state VARCHAR NOT NULL
+create table engineering_metrics.merge_requests (
+    mr_id varchar not null,
+    mr_title varchar not null,
+    project_id varchar not null,
+    created_at timestamptz not null,
+    created_by varchar not null,
+    updated_at timestamptz not null,
+    updated_by varchar not null,
+    merged_at timestamptz not null,
+    merged_by varchar not null,
+    mr_state varchar not null,
+    primary key (mr_id)
 );
 
-CREATE TABLE engineering_metrics.closed_issues_on_merge (
-    issue_id VARCHAR NOT NULL,
-    mr_id VARCHAR NOT NULL,
-    mr_title VARCHAR NOT NULL,
-    project_id VARCHAR NOT NULL,
+create table engineering_metrics.closed_issues_on_merge (
+    issue_id varchar not null,
+    mr_id varchar not null,
+    mr_title varchar not null,
+    project_id varchar not null,
     primary key (issue_id, mr_id)
 );
