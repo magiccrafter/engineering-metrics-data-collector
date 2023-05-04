@@ -18,13 +18,13 @@ create table engineering_metrics.merge_requests (
     mr_id varchar not null,
     mr_title varchar not null,
     project_id varchar not null,
-    created_at timestamptz not null,
-    created_by varchar not null,
-    updated_at timestamptz not null,
-    updated_by varchar not null,
-    merged_at timestamptz not null,
-    merged_by varchar not null,
-    mr_state varchar not null,
+    -- created_at timestamptz not null,
+    -- created_by varchar not null,
+    -- updated_at timestamptz not null,
+    -- updated_by varchar not null,
+    -- merged_at timestamptz not null,
+    -- merged_by varchar not null,
+    -- mr_state varchar not null,
     primary key (mr_id)
 );
 
