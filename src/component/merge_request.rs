@@ -1,4 +1,3 @@
-use crate::client;
 use crate::client::gitlab_graphql_client;
 use crate::store::Store;
 
@@ -17,8 +16,8 @@ pub struct MergeRequest {
     pub project_id: String,
     // `OffsetDateTime`'s default serialization format is not standard.
     // https://docs.rs/serde_with/latest/serde_with/guide/serde_as_transformations/index.html#well-known-time-formats-for-offsetdatetime
-    // #[serde_as(as = "Rfc3339")]
-    // created_at: OffsetDateTime,
+    #[serde_as(as = "Rfc3339")]
+    pub created_at: OffsetDateTime,
     // created_by: String,
     // #[serde_as(as = "Rfc3339")]
     // merged_at: OffsetDateTime,
@@ -48,7 +47,7 @@ pub async fn fetch_group_merge_requests(
     updated_after: &String,
     after_pointer_token: Option<String>,
 ) -> MergeRequestsWithPageInfo {
-    let group_data = client::gitlab_graphql_client::GitlabGraphQLClient::new(&authorization_header.clone())
+    let group_data = gitlab_graphql_client::GitlabGraphQLClient::new(&authorization_header.clone())
         .await
         .fetch_group_merge_requests(gitlab_graphql_client, &group_full_path.clone(), &updated_after.clone(), after_pointer_token.clone())
         .await;
@@ -61,10 +60,10 @@ pub async fn fetch_group_merge_requests(
             mr_id: mr_ref.expect("mr.id is None").id.clone(),
             mr_title: mr_ref.expect("mr.title is None").title.clone(),
             project_id: mr_ref.expect("mr.project_id is None").project_id.clone().to_string(),
-            // created_at: OffsetDateTime::parse(
-            //     &mr_ref.expect("mr.created_at is None").created_at.clone(),
-            //     &Rfc3339,
-            // ).unwrap(),
+            created_at: OffsetDateTime::parse(
+                &mr_ref.expect("mr.created_at is None").created_at.clone(),
+                &Rfc3339,
+            ).unwrap(),
         });
     }
     
@@ -85,8 +84,8 @@ pub async fn persist_merge_request(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id)
-        VALUES ($1, $2, $3)
+        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id, created_at)
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
             mr_title = $2, 
@@ -95,6 +94,7 @@ pub async fn persist_merge_request(
         .bind(&merge_request.mr_id)
         .bind(&merge_request.mr_title)
         .bind(&merge_request.project_id)
+        .bind(&merge_request.created_at)
     .execute(&mut conn)
     .await
     .unwrap();
@@ -151,6 +151,10 @@ pub async fn print_merge_requests(
                 mr_id: row.get("mr_id"),
                 mr_title: row.get("mr_title"),
                 project_id: row.get("project_id"),
+                created_at: OffsetDateTime::parse(
+                    &row.get::<String, _>("created_at"),
+                    &Rfc3339,
+                ).unwrap(),
             })
             .collect()
     })

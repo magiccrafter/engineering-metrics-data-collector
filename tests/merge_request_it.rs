@@ -6,6 +6,8 @@ mod postgres_container;
 use sqlx::Row;
 use serde_json::json;
 use reqwest::Client;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use wiremock::matchers::{body_json, method, path, body_string};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -42,7 +44,7 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_da
     assert_eq!(result.rows_affected(), 2);
 
     // fetch concrete merge request with id equal to gid://gitlab/MergeRequest/221742778
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221742778'")
         .fetch_one(&mut conn)
@@ -51,6 +53,7 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_da
     assert_eq!(result.get::<String, _>("mr_id"), "gid://gitlab/MergeRequest/221742778");
     assert_eq!(result.get::<String, _>("mr_title"), "Resolve \"pipeline check\"");
     assert_eq!(result.get::<String, _>("project_id"), "52263413");
+    assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
 }
 
 #[tokio::test]
@@ -74,18 +77,19 @@ async fn should_persist_and_select_one_mr_successfully() {
         mr_id: "gitlab/1".to_string(),
         mr_title: "awesome issue".to_string(),
         project_id: "gitlab/1".to_string(),
+        created_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap()
     };
 
     merge_request::persist_merge_request(&store, &mr).await;
 
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at
         FROM engineering_metrics.merge_requests")
         .execute(&mut conn)
         .await
         .unwrap();
     assert_eq!(result.rows_affected(), 1);
 
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at
         FROM engineering_metrics.merge_requests")
         .fetch_one(&mut conn)
         .await
@@ -94,7 +98,7 @@ async fn should_persist_and_select_one_mr_successfully() {
     assert_eq!(result.get::<String, _>("mr_id"), "gitlab/1");
     assert_eq!(result.get::<String, _>("mr_title"), "awesome issue");
     assert_eq!(result.get::<String, _>("project_id"), "gitlab/1");
-
+    assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
 }
 
 #[tokio::test]

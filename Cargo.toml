@@ -11,7 +11,7 @@ time = { version = "0.3", features = ["macros"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_with = { version = "3.0.0", features = ["time_0_3"] }
-sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "migrate", "macros" ] }
+sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "migrate", "macros", "time" ] }
 graphql_client = { version = "0.12.0", features = ["reqwest"] }
 dotenv = "0.15.0"
 
