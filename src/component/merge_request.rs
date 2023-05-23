@@ -29,13 +29,25 @@ pub struct MergeRequest {
     // state: String,
 }
 
+#[derive(Debug)]
+pub struct MergeRequestsWithPageInfo {
+    pub merge_requests: Vec<MergeRequest>,
+    pub page_info: PageInfo,
+}
+
+#[derive(Debug)]
+pub struct PageInfo {
+    pub end_cursor: Option<String>,
+    pub has_next_page: bool,
+}
+
 pub async fn fetch_group_merge_requests(
     gitlab_graphql_client: &str,
     authorization_header: &String,
     group_full_path: &String,
     updated_after: &String,
     after_pointer_token: Option<String>,
-) -> Vec<MergeRequest> {
+) -> MergeRequestsWithPageInfo {
     let group_data = client::gitlab_graphql_client::GitlabGraphQLClient::new(&authorization_header.clone())
         .await
         .fetch_group_merge_requests(gitlab_graphql_client, &group_full_path.clone(), &updated_after.clone(), after_pointer_token.clone())
@@ -56,7 +68,13 @@ pub async fn fetch_group_merge_requests(
         });
     }
     
-    merge_requests
+    MergeRequestsWithPageInfo {
+        merge_requests: merge_requests,
+        page_info: PageInfo {
+            end_cursor: group_data.merge_requests.page_info.end_cursor,
+            has_next_page: group_data.merge_requests.page_info.has_next_page,
+        },
+    }
 }
 
 pub async fn persist_merge_request(
@@ -82,25 +100,32 @@ pub async fn persist_merge_request(
     .unwrap();
 }
 
-/// import merge requests from gitlab's graphql api to postgresql
 pub async fn import_merge_requests(
     gitlab_graphql_client: &str,
     authorization_header: &String,
     group_full_path: &String,
     updated_after: &String,
-    after_pointer_token: Option<String>,
     store: &Store,
 ) -> () {
-    let merge_requests: Vec<MergeRequest> = fetch_group_merge_requests(
-        &gitlab_graphql_client,
-        &authorization_header.clone(),
-        &group_full_path.clone(),
-        &updated_after.clone(),
-        after_pointer_token.clone(),
-    ).await;
 
-    for merge_request in merge_requests {
-        persist_merge_request(&store, &merge_request).await;
+    let mut has_more_merge_requests = true;
+    let mut after_pointer_token = Option::None;
+
+    while has_more_merge_requests {
+        let res = fetch_group_merge_requests(
+            &gitlab_graphql_client,
+            &authorization_header.clone(),
+            &group_full_path.clone(),
+            &updated_after.clone(),
+            after_pointer_token.clone(),
+        ).await;
+
+        after_pointer_token = res.page_info.end_cursor;
+        has_more_merge_requests = res.page_info.has_next_page;
+
+        for merge_request in res.merge_requests {
+            persist_merge_request(&store, &merge_request).await;
+        }
     }
 }
 

@@ -31,7 +31,7 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_da
         .mount(&mock_server)
     .await;
     const DUMMY: &String = &String::new();
-    merge_request::import_merge_requests(&mock_server.uri(), DUMMY, DUMMY, DUMMY, Option::None, &store).await;
+    merge_request::import_merge_requests(&mock_server.uri(), DUMMY, DUMMY, DUMMY, &store).await;
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
     let result = sqlx::query("SELECT mr_id, mr_title, project_id
@@ -116,7 +116,7 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
 
     const DUMMY: &String = &String::new();
     let result = merge_request::fetch_group_merge_requests(&mock_server.uri(), DUMMY, DUMMY, DUMMY, Option::None).await;
-    assert_eq!(result.len(), 2);
+    assert_eq!(result.merge_requests.len(), 2);
 }
 
 async fn get_graphql_query_response_mock() -> &'static str {
