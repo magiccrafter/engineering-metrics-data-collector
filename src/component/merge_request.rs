@@ -120,12 +120,12 @@ pub async fn import_merge_requests(
             after_pointer_token.clone(),
         ).await;
 
-        after_pointer_token = res.page_info.end_cursor;
-        has_more_merge_requests = res.page_info.has_next_page;
-
         for merge_request in res.merge_requests {
             persist_merge_request(&store, &merge_request).await;
         }
+
+        after_pointer_token = res.page_info.end_cursor;
+        has_more_merge_requests = res.page_info.has_next_page;
     }
 }
 

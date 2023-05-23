@@ -13,7 +13,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
 
     let database_url = env::var("DATABASE_URL").unwrap().to_string();
-
     let gitlab_graphql_endpoint = env::var("GITLAB_GRAPHQL_ENDPOINT").unwrap().to_string();
     let authorization_header = env::var("EM_TOKEN").unwrap().to_string();
     let updated_after = env::var("UPDATED_AFTER").unwrap().to_string();

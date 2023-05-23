@@ -1,4 +1,4 @@
-# engineering-metrics-data-manager
+# engineering-metrics-data-collector
 
 # testing
 
