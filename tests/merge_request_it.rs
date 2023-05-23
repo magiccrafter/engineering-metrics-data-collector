@@ -10,7 +10,7 @@ use wiremock::matchers::{body_json, method, path, body_string};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
-async fn should_successfully_import_a_single_merge_request_from_gitlab() {
+async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_database() {
     let docker = clients::Cli::default();
     let image = postgres_container::Postgres::default();
     let node = docker.run(image);
@@ -23,26 +23,34 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab() {
     .await;
 
     store.migrate().await.unwrap();
+    
+    let mock_server = MockServer::start().await;
+    let expected_body = get_graphql_query_response_mock().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(expected_body))
+        .mount(&mock_server)
+    .await;
+    const DUMMY: &String = &String::new();
+    merge_request::import_merge_requests(&mock_server.uri(), DUMMY, DUMMY, DUMMY, Option::None, &store).await;
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id
+        FROM engineering_metrics.merge_requests")
+        .execute(&mut conn)
+        .await
+        .unwrap();
+    assert_eq!(result.rows_affected(), 2);
 
-    // mock the graphql client response with a single merge request
-    
-}
-
-#[tokio::test]
-async fn hello_reqwest() {
-    let mock_server = MockServer::start().await;
-
-    Mock::given(method("GET"))
-        .and(path("/"))
-        .respond_with(ResponseTemplate::new(200))
-        .mount(&mock_server)
-        .await;
-
-    let resp = Client::new().get(&mock_server.uri()).send().await.unwrap();
-
-    assert_eq!(resp.status(), 200);
+    // fetch concrete merge request with id equal to gid://gitlab/MergeRequest/221742778
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id
+        FROM engineering_metrics.merge_requests
+        WHERE mr_id = 'gid://gitlab/MergeRequest/221742778'")
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+    assert_eq!(result.get::<String, _>("mr_id"), "gid://gitlab/MergeRequest/221742778");
+    assert_eq!(result.get::<String, _>("mr_title"), "Resolve \"pipeline check\"");
+    assert_eq!(result.get::<String, _>("project_id"), "52263413");
 }
 
 #[tokio::test]
@@ -91,50 +99,120 @@ async fn should_persist_and_select_one_mr_successfully() {
 
 #[tokio::test]
 async fn should_fetch_from_gitlab_graphql_successfully() {
-    // let mock_server = MockServer::start().await;
-
-    // let expected_body = r#"
-    // {
-    //     "data": {
-    //         "group": {
-    //             "mergeRequests": {
-    //                 "nodes": [{
-    //                     "id": "gid://gitlab/MergeRequest/221742778",
-    //                     "title": "Resolve \"pipeline check\""
-    //                 }, {
-    //                     "id": "gid://gitlab/MergeRequest/221706264",
-    //                     "title": "Resolve \"Increase the size of login session cache\""
-    //                 }]
-    //             }
-    //         }
-    //     }
-    // }
-    // "#;
-
-    // let expected_body = json!({ "a": 1, "c": { "e": 2 } });
+    let mock_server = MockServer::start().await;
+    let expected_body = get_graphql_query_response_mock().await;
     // let request_body = json!({ "query": "query { group(fullPath: \"gitlab\") { mergeRequests { nodes { id title } } } }" });
 
-    // Mock::given(method("POST"))
-    //     // .and(path("/graphql"))
-    //     // .and(body_string(expected_body.to_string()))
-    //     .and(body_json(expected_body))
-    //     .respond_with(ResponseTemplate::new(200))
-    //     .mount(&mock_server)
-    //     .await;
+    Mock::given(method("POST"))
+        // .and(path("/graphql"))
+        // .and(body_string(request_body.to_string()))
+        .respond_with(ResponseTemplate::new(200).set_body_string(expected_body))
+        .mount(&mock_server)
+        .await;
 
-    // let status = surf::post(&mock_server.uri())
-    // .await.unwrap().body_string().await.unwrap();
+    let mut resp = surf::post(&mock_server.uri()).await.unwrap();
+    println!("response body: {:?}, status: {:?}", &mut resp.body_string().await.unwrap(), resp.status());
+    assert_eq!(resp.status(), 200);
 
-    // println!("status: {:?}", &status);
+    const DUMMY: &String = &String::new();
+    let result = merge_request::fetch_group_merge_requests(&mock_server.uri(), DUMMY, DUMMY, DUMMY, Option::None).await;
+    assert_eq!(result.len(), 2);
+}
 
-    // assert_eq!(status, "404".to_string());
-
-    // let resp = Client::new().post(&mock_server.uri()).send().await.unwrap();
-    // println!("resp: {:?}", resp);
-
-    // const DUMMY: &String = &String::new();
-    // let result = merge_request::fetch_group_merge_requests(&mock_server.uri(), DUMMY, DUMMY, DUMMY, Option::None).await;
-    // assert_eq!(result.len(), 1);
+async fn get_graphql_query_response_mock() -> &'static str {
+    return r#"
+    {
+        "data": {
+            "queryComplexity": {
+                "score": 50,
+                "limit": 250
+            },
+            "group": {
+                "id": "gid://gitlab/Group/52263413",
+                "name": "cool_group",
+                "mergeRequests": {
+                    "nodes": [{
+                        "id": "gid://gitlab/MergeRequest/221742778",
+                        "title": "Resolve \"pipeline check\"",
+                        "draft": false,
+                        "webUrl": "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/221742778",
+                        "labels": {
+                            "nodes": [{
+                                "title": "engineering"
+                            }]
+                        },
+                        "approved": true,
+                        "approvedBy": {
+                            "nodes": [{
+                                "id": "gid://gitlab/User/2",
+                                "username": "dev2"
+                            }]
+                        },
+                        "author": {
+                            "id": "gid://gitlab/User/1",
+                            "username": "dev1"
+                        },
+                        "createdAt": "2020-03-02T09:00:00Z",
+                        "updatedAt": "2020-03-02T09:10:00Z",
+                        "mergedAt": "2020-03-02T09:20:00Z",
+                        "projectId": 52263413,
+                        "diffStatsSummary": {
+                            "additions": 2,
+                            "deletions": 2,
+                            "changes": 4,
+                            "fileCount": 1
+                        },
+                        "mergeUser": {
+                            "id": "gid://gitlab/User/1",
+                            "username": "dev1"
+                        },
+                        "state": "merged"
+                    }, {
+                        "id": "gid://gitlab/MergeRequest/221706264",
+                        "title": "Resolve \"Increase the size of login session cache\"",
+                        "draft": false,
+                        "webUrl": "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/221706264",
+                        "labels": {
+                            "nodes": [{
+                                "title": "product"
+                            }]
+                        },
+                        "approved": true,
+                        "approvedBy": {
+                            "nodes": [{
+                                "id": "gid://gitlab/User/1",
+                                "username": "dev1"
+                            }]
+                        },
+                        "author": {
+                            "id": "gid://gitlab/User/3",
+                            "username": "dev3"
+                        },
+                        "createdAt": "2020-03-02T09:30:00Z",
+                        "updatedAt": "2020-03-02T09:40:00Z",
+                        "mergedAt": "2020-03-02T09:50:00Z",
+                        "projectId": 52263413,
+                        "diffStatsSummary": {
+                            "additions": 8,
+                            "deletions": 6,
+                            "changes": 14,
+                            "fileCount": 2
+                        },
+                        "mergeUser": {
+                            "id": "gid://gitlab/User/3",
+                            "username": "dev3"
+                        },
+                        "state": "merged"
+                    }],
+                    "pageInfo": {
+                        "endCursor": "eyJjcmVhdGVkX2F0IjoiMjAyMy0wNS0yMyAwODoxNjo0MS40NTQ1MTQwMDAgKzAwMDAiLCJpZCI6IjIyNTQ3NzIxMSJ9",
+                        "hasNextPage": false
+                    }
+                }
+            }
+        }
+    }
+    "#;
 }
 
 // curl "https://gitlab.com/api/graphql" --header "Authorization: Bearer TODO" \
