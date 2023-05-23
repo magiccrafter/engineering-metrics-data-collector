@@ -8,19 +8,20 @@ use sqlx::Row;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-#[serde_as]
-#[derive(Serialize, Deserialize, Debug)]
+// #[serde_as]
+// #[derive(Serialize, Some(Deserialize), Debug)]
+#[derive(Debug)]
 pub struct MergeRequest {
     pub mr_id: String,
     pub mr_title: String,
     pub project_id: String,
     // `OffsetDateTime`'s default serialization format is not standard.
     // https://docs.rs/serde_with/latest/serde_with/guide/serde_as_transformations/index.html#well-known-time-formats-for-offsetdatetime
-    #[serde_as(as = "Rfc3339")]
+    // #[serde_as(as = "Rfc3339")]
     pub created_at: OffsetDateTime,
     // created_by: String,
     // #[serde_as(as = "Rfc3339")]
-    // merged_at: OffsetDateTime,
+    pub merged_at: Option<OffsetDateTime>,
     // merged_by: String,
     // #[serde_as(as = "Rfc3339")]
     // updated_at: OffsetDateTime,
@@ -64,6 +65,14 @@ pub async fn fetch_group_merge_requests(
                 &mr_ref.expect("mr.created_at is None").created_at.clone(),
                 &Rfc3339,
             ).unwrap(),
+            merged_at: mr_ref.expect("mr.merged_at is None")
+                .merged_at.clone()
+                .map_or(None, |m_at| {
+                    Some(OffsetDateTime::parse(
+                        &m_at,
+                        &Rfc3339,
+                    ).unwrap())
+            })
         });
     }
     
@@ -84,8 +93,8 @@ pub async fn persist_merge_request(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id, created_at)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id, created_at, merged_at)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
             mr_title = $2, 
@@ -95,6 +104,7 @@ pub async fn persist_merge_request(
         .bind(&merge_request.mr_title)
         .bind(&merge_request.project_id)
         .bind(&merge_request.created_at)
+        .bind(&merge_request.merged_at)
     .execute(&mut conn)
     .await
     .unwrap();
@@ -155,6 +165,10 @@ pub async fn print_merge_requests(
                     &row.get::<String, _>("created_at"),
                     &Rfc3339,
                 ).unwrap(),
+                merged_at: Some(OffsetDateTime::parse(
+                    &row.get::<String, _>("merged_at"),
+                    &Rfc3339,
+                ).unwrap()),
             })
             .collect()
     })

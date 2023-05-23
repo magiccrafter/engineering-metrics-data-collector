@@ -22,7 +22,7 @@ create table engineering_metrics.merge_requests (
     -- created_by varchar not null,
     -- updated_at timestamptz not null,
     -- updated_by varchar not null,
-    -- merged_at timestamptz not null,
+    merged_at timestamptz null,
     -- merged_by varchar not null,
     -- mr_state varchar not null,
     primary key (mr_id)
