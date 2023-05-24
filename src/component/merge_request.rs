@@ -56,17 +56,16 @@ pub async fn fetch_group_merge_requests(
 
     let mut merge_requests: Vec<MergeRequest> = Vec::new();
     for mr in group_data.merge_requests.nodes.expect("GroupMergeReqsGroupMergeRequestsNodes is None") {
-        let mr_ref = mr.as_ref();
+        let mr_ref = mr.as_ref().expect("mr is None");
         merge_requests.push(MergeRequest {
-            mr_id: mr_ref.expect("mr.id is None").id.clone(),
-            mr_title: mr_ref.expect("mr.title is None").title.clone(),
-            project_id: mr_ref.expect("mr.project_id is None").project_id.clone().to_string(),
+            mr_id: mr_ref.id.clone(),
+            mr_title: mr_ref.title.clone(),
+            project_id: mr_ref.project_id.clone().to_string(),
             created_at: OffsetDateTime::parse(
-                &mr_ref.expect("mr.created_at is None").created_at.clone(),
+                &mr_ref.created_at.clone(),
                 &Rfc3339,
             ).unwrap(),
-            merged_at: mr_ref.expect("mr.merged_at is None")
-                .merged_at.clone()
+            merged_at: mr_ref.merged_at.clone()
                 .map_or(None, |m_at| {
                     Some(OffsetDateTime::parse(
                         &m_at,

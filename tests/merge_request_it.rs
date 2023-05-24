@@ -43,7 +43,7 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_da
         .unwrap();
     assert_eq!(result.rows_affected(), 2);
 
-    // fetch concrete merge request with id equal to gid://gitlab/MergeRequest/221742778
+    // fetch concrete merge request that is merged with id equal to gid://gitlab/MergeRequest/221742778
     let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221742778'")
@@ -54,9 +54,9 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_da
     assert_eq!(result.get::<String, _>("mr_title"), "Resolve \"pipeline check\"");
     assert_eq!(result.get::<String, _>("project_id"), "52263413");
     assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
-    assert_eq!(result.get::<OffsetDateTime, _>("merged_at"), OffsetDateTime::parse("2020-03-02T09:20:00Z", &Rfc3339).unwrap());
+    assert_eq!(result.get::<Option<OffsetDateTime>, _>("merged_at"), Some(OffsetDateTime::parse("2020-03-02T09:20:00Z", &Rfc3339).unwrap()));
 
-    // fetch concrete merge request with id equal to gid://gitlab/MergeRequest/221706264
+    // fetch concrete merge request that is not merged with id equal to gid://gitlab/MergeRequest/221706264
     let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221706264'")
