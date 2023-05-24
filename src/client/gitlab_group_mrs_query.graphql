@@ -26,12 +26,10 @@ query GroupMergeReqs($group_full_path: ID!, $updated_after: Time!, $after: Strin
         approved
         approvedBy {
           nodes {
-            id
             username
           }
         }
         author {
-          id
           username
         }
         diffStatsSummary {
@@ -41,13 +39,15 @@ query GroupMergeReqs($group_full_path: ID!, $updated_after: Time!, $after: Strin
           fileCount
         }
         mergeUser {
-          id
           username
         }
         createdAt
         mergedAt
         updatedAt
         projectId
+        project {
+          name
+        }
         state
       }
       pageInfo {

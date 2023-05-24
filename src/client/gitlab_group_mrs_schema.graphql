@@ -43,6 +43,7 @@ type MergeRequest {
   updatedAt: String!
   mergedAt: String
   projectId: Int!
+  project: Project!
   state: MergeRequestState!
 }
 
@@ -80,6 +81,12 @@ type PageInfo {
   hasNextPage: Boolean!
   hasPreviousPage: Boolean!
   endCursor: String
+}
+
+type Project {
+  id: ID!
+  name: String!
+  webUrl: String!
 }
 
 enum MergeRequestState {

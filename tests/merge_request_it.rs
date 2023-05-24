@@ -91,6 +91,7 @@ async fn should_persist_and_select_one_mr_successfully() {
         mr_id: "gitlab/1".to_string(),
         mr_title: "awesome issue".to_string(),
         project_id: "gitlab/1".to_string(),
+        project_name: "cool project 1".to_string(),
         created_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),
         merged_at: Option::None,
     };
@@ -176,6 +177,9 @@ async fn get_graphql_query_response_mock() -> &'static str {
                         "updatedAt": "2020-03-02T09:10:00Z",
                         "mergedAt": "2020-03-02T09:20:00Z",
                         "projectId": 52263413,
+                        "project": {
+                            "name": "cool_project_1"
+                        },
                         "diffStatsSummary": {
                             "additions": 2,
                             "deletions": 2,
@@ -197,7 +201,7 @@ async fn get_graphql_query_response_mock() -> &'static str {
                                 "title": "product"
                             }]
                         },
-                        "approved": true,
+                        "approved": false,
                         "approvedBy": {
                             "nodes": []
                         },
@@ -209,6 +213,9 @@ async fn get_graphql_query_response_mock() -> &'static str {
                         "updatedAt": "2020-03-02T09:40:00Z",
                         "mergedAt": null,
                         "projectId": 52263413,
+                        "project": {
+                            "name": "cool_project_1"
+                        },
                         "diffStatsSummary": {
                             "additions": 8,
                             "deletions": 6,

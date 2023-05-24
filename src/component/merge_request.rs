@@ -15,6 +15,7 @@ pub struct MergeRequest {
     pub mr_id: String,
     pub mr_title: String,
     pub project_id: String,
+    pub project_name: String,
     // `OffsetDateTime`'s default serialization format is not standard.
     // https://docs.rs/serde_with/latest/serde_with/guide/serde_as_transformations/index.html#well-known-time-formats-for-offsetdatetime
     // #[serde_as(as = "Rfc3339")]
@@ -61,6 +62,7 @@ pub async fn fetch_group_merge_requests(
             mr_id: mr_ref.id.clone(),
             mr_title: mr_ref.title.clone(),
             project_id: mr_ref.project_id.clone().to_string(),
+            project_name: mr_ref.project.name.clone(),
             created_at: OffsetDateTime::parse(
                 &mr_ref.created_at.clone(),
                 &Rfc3339,
@@ -92,8 +94,8 @@ pub async fn persist_merge_request(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id, created_at, merged_at)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id, project_name, created_at, merged_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
             mr_title = $2, 
@@ -102,6 +104,7 @@ pub async fn persist_merge_request(
         .bind(&merge_request.mr_id)
         .bind(&merge_request.mr_title)
         .bind(&merge_request.project_id)
+        .bind(&merge_request.project_name)
         .bind(&merge_request.created_at)
         .bind(&merge_request.merged_at)
     .execute(&mut conn)
@@ -146,7 +149,7 @@ pub async fn print_merge_requests(
     let mut conn = store.conn_pool.acquire().await.unwrap();
     let merge_requests: Vec<MergeRequest> = sqlx::query(
         r#"
-        SELECT mr_id, mr_title, project_id
+        SELECT mr_id, mr_title, project_id, project_name, created_at, merged_at
         FROM merge_requests
         WHERE updated_at > $1
         "#)
@@ -160,6 +163,7 @@ pub async fn print_merge_requests(
                 mr_id: row.get("mr_id"),
                 mr_title: row.get("mr_title"),
                 project_id: row.get("project_id"),
+                project_name: row.get("project_name"),
                 created_at: OffsetDateTime::parse(
                     &row.get::<String, _>("created_at"),
                     &Rfc3339,
