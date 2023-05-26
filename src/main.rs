@@ -1,4 +1,5 @@
 use engineering_metrics_data_collector::client;
+use engineering_metrics_data_collector::component::merge_request;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -7,6 +8,7 @@ use std::env;
 use std::env::var;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
+use engineering_metrics_data_collector::store::Store;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,8 +28,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .fetch_group_merge_requests(&gitlab_graphql_endpoint, &group_full_path.clone(), &updated_after.clone(), after_pointer_token.clone())
             .await;
-        // println!("group_data: {:?}", &group_data);
-        // println!("group_data: {:?}", &group_data.merge_requests.nodes);
 
         let mut merge_requests: Vec<MergeRequest2> = Vec::new();
         for mr in group_data.merge_requests.nodes.expect("GroupMergeReqsGroupMergeRequestsNodes is None") {
@@ -37,17 +37,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 mr_title: mr_ref.expect("mr.title is None").title.clone(),
             });
         }
-
-        // print the merge requests
         for mr in merge_requests {
             println!("mr: {:?}", &mr);
         }
-
         after_pointer_token = group_data.merge_requests.page_info.end_cursor;
         println!("after_pointer_token: {:?}", &after_pointer_token);
         has_more_merge_requests = group_data.merge_requests.page_info.has_next_page;
         println!("has_next_page: {:?}", &has_more_merge_requests);
     }
+
+    // import the merge requests
+    let store = Store::new(&database_url).await;
+    store.migrate().await.unwrap();
+    merge_request::import_merge_requests(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &updated_after, &store).await;
 
     Ok(())
 }
