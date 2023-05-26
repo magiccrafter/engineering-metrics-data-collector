@@ -3,8 +3,6 @@ use crate::store::Store;
 
 use serde::Deserialize;
 use serde::Serialize;
-use serde::__private::de;
-use serde_with::serde_as;
 use serde_json;
 use sqlx::Row;
 use time::format_description::well_known::Rfc3339;
@@ -55,14 +53,14 @@ pub struct PageInfo {
 
 pub async fn fetch_group_merge_requests(
     gitlab_graphql_client: &str,
-    authorization_header: &String,
-    group_full_path: &String,
-    updated_after: &String,
+    authorization_header: &str,
+    group_full_path: &str,
+    updated_after: &str,
     after_pointer_token: Option<String>,
 ) -> MergeRequestsWithPageInfo {
-    let group_data = gitlab_graphql_client::GitlabGraphQLClient::new(&authorization_header.clone())
+    let group_data = gitlab_graphql_client::GitlabGraphQLClient::new(authorization_header)
         .await
-        .fetch_group_merge_requests(gitlab_graphql_client, &group_full_path.clone(), &updated_after.clone(), after_pointer_token.clone())
+        .fetch_group_merge_requests(gitlab_graphql_client, group_full_path, updated_after, after_pointer_token)
         .await;
     println!("group_data: {:?}", &group_data);
 
@@ -79,26 +77,21 @@ pub async fn fetch_group_merge_requests(
                 &Rfc3339,
             ).unwrap(),
             merged_at: mr_ref.merged_at.clone()
-                .map_or(None, |m_at| {
-                    Some(OffsetDateTime::parse(
-                        &m_at,
-                        &Rfc3339,
-                    ).unwrap())
-            }),
+                .map(|m_at| OffsetDateTime::parse(&m_at,&Rfc3339).unwrap()
+            ),
             diff_stats_summary: mr_ref.diff_stats_summary.as_ref()
-            .map_or(None, |diff_stats_summary| {
-                Some(DiffStatsSummary {
+            .map(|diff_stats_summary| DiffStatsSummary {
                     additions: diff_stats_summary.additions as i32,
                     deletions: diff_stats_summary.deletions as i32,
                     changes: diff_stats_summary.changes as i32,
                     file_count: diff_stats_summary.file_count as i32,
-                })
-            }),
+                }
+            ),
         });
     }
     
     MergeRequestsWithPageInfo {
-        merge_requests: merge_requests,
+        merge_requests,
         page_info: PageInfo {
             end_cursor: group_data.merge_requests.page_info.end_cursor,
             has_next_page: group_data.merge_requests.page_info.has_next_page,
@@ -126,9 +119,9 @@ pub async fn persist_merge_request(
         .bind(&merge_request.mr_title)
         .bind(&merge_request.project_id)
         .bind(&merge_request.project_name)
-        .bind(&merge_request.created_at)
-        .bind(&merge_request.merged_at)
-        .bind(&serde_json::to_value(&merge_request.diff_stats_summary).unwrap())
+        .bind(merge_request.created_at)
+        .bind(merge_request.merged_at)
+        .bind(serde_json::to_value(&merge_request.diff_stats_summary).unwrap())
     .execute(&mut conn)
     .await
     .unwrap();
@@ -136,26 +129,26 @@ pub async fn persist_merge_request(
 
 pub async fn import_merge_requests(
     gitlab_graphql_client: &str,
-    authorization_header: &String,
-    group_full_path: &String,
-    updated_after: &String,
+    authorization_header: &str,
+    group_full_path: &str,
+    updated_after: &str,
     store: &Store,
-) -> () {
+) {
 
     let mut has_more_merge_requests = true;
     let mut after_pointer_token = Option::None;
 
     while has_more_merge_requests {
         let res = fetch_group_merge_requests(
-            &gitlab_graphql_client,
-            &authorization_header.clone(),
-            &group_full_path.clone(),
-            &updated_after.clone(),
+            gitlab_graphql_client,
+            authorization_header,
+            group_full_path,
+            updated_after,
             after_pointer_token.clone(),
         ).await;
 
         for merge_request in res.merge_requests {
-            persist_merge_request(&store, &merge_request).await;
+            persist_merge_request(store, &merge_request).await;
         }
 
         after_pointer_token = res.page_info.end_cursor;

@@ -13,7 +13,7 @@ impl GitlabGraphQLClient {
             .default_headers(
                 std::iter::once((
                     reqwest::header::AUTHORIZATION,
-                    reqwest::header::HeaderValue::from_str(&authorization_header).unwrap(),
+                    reqwest::header::HeaderValue::from_str(authorization_header).unwrap(),
                 ))
                 .collect(),
             )

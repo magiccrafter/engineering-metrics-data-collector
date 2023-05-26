@@ -5,7 +5,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_with::serde_as;
 use std::env;
-use std::env::var;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use engineering_metrics_data_collector::store::Store;
@@ -34,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while has_more_merge_requests {
         let group_data = client::gitlab_graphql_client::GitlabGraphQLClient::new(&authorization_header.clone())
             .await
-            .fetch_group_merge_requests(&gitlab_graphql_endpoint, &group_full_path.clone(), &updated_after.clone(), after_pointer_token.clone())
+            .fetch_group_merge_requests(&gitlab_graphql_endpoint, &group_full_path, &updated_after, after_pointer_token)
             .await;
 
         let mut merge_requests: Vec<MergeRequest2> = Vec::new();
