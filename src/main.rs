@@ -12,14 +12,21 @@ use engineering_metrics_data_collector::store::Store;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /* 
+        RUST_BACKTRACE is an environment variable that controls whether Rust programs display a backtrace when they encounter a panic. 
+        A backtrace is a list of function calls that shows the sequence of events that led up to the panic.
+        By default, Rust programs do not display a backtrace when they panic. 
+        However, you can enable backtraces by setting the RUST_BACKTRACE environment variable to 1 or full. 
+        Setting RUST_BACKTRACE=1 will display a brief backtrace, while setting RUST_BACKTRACE=full will display a more detailed backtrace.
+     */
     env::set_var("RUST_BACKTRACE", "1");
     dotenv::dotenv().ok();
 
-    let database_url = env::var("DATABASE_URL").unwrap().to_string();
-    let gitlab_graphql_endpoint = env::var("GITLAB_GRAPHQL_ENDPOINT").unwrap().to_string();
-    let authorization_header = env::var("EM_TOKEN").unwrap().to_string();
-    let updated_after = env::var("UPDATED_AFTER").unwrap().to_string();
-    let group_full_path = env::var("GROUP_FULL_PATH").unwrap().to_string();
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL environment variable is not set.").to_string();
+    let gitlab_graphql_endpoint = env::var("GITLAB_GRAPHQL_ENDPOINT").expect("GITLAB_GRAPHQL_ENDPOINT environment variable is not set.").to_string();
+    let authorization_header = env::var("EM_TOKEN").expect("EM_TOKEN environment variable is not set.").to_string();
+    let updated_after = env::var("UPDATED_AFTER").expect("UPDATED_AFTER environment variable is not set.").to_string();
+    let group_full_path = env::var("GROUP_FULL_PATH").expect("GROUP_FULL_PATH environment variable is not set.").to_string();
 
     let mut has_more_merge_requests = true;
     let mut after_pointer_token: core::option::Option<String> = None;
