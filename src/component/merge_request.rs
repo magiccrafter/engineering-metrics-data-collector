@@ -111,8 +111,8 @@ pub async fn persist_merge_request(
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
-            mr_title = $2, 
-            project_id = $3,
+            mr_title = $2,
+            merged_at = $6,
             diff_stats_summary = $7
         "#)
         .bind(&merge_request.mr_id)
