@@ -12,6 +12,7 @@ use engineering_metrics_data_collector::store::Store;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env::set_var("RUST_BACKTRACE", "1");
     dotenv::dotenv().ok();
 
     let database_url = env::var("DATABASE_URL").unwrap().to_string();
