@@ -3,7 +3,9 @@ use crate::store::Store;
 
 use serde::Deserialize;
 use serde::Serialize;
+use serde::__private::de;
 use serde_with::serde_as;
+use serde_json;
 use sqlx::Row;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -28,6 +30,15 @@ pub struct MergeRequest {
     // updated_at: OffsetDateTime,
     // updated_by: String,
     // state: String,
+    pub diff_stats_summary: Option<DiffStatsSummary>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DiffStatsSummary {
+    pub additions: i32,
+    pub deletions: i32,
+    pub changes: i32,
+    pub file_count: i32,
 }
 
 #[derive(Debug)]
@@ -73,7 +84,16 @@ pub async fn fetch_group_merge_requests(
                         &m_at,
                         &Rfc3339,
                     ).unwrap())
-            })
+            }),
+            diff_stats_summary: mr_ref.diff_stats_summary.as_ref()
+            .map_or(None, |diff_stats_summary| {
+                Some(DiffStatsSummary {
+                    additions: diff_stats_summary.additions as i32,
+                    deletions: diff_stats_summary.deletions as i32,
+                    changes: diff_stats_summary.changes as i32,
+                    file_count: diff_stats_summary.file_count as i32,
+                })
+            }),
         });
     }
     
@@ -94,12 +114,13 @@ pub async fn persist_merge_request(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id, project_name, created_at, merged_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id, project_name, created_at, merged_at, diff_stats_summary)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
             mr_title = $2, 
-            project_id = $3
+            project_id = $3,
+            diff_stats_summary = $7
         "#)
         .bind(&merge_request.mr_id)
         .bind(&merge_request.mr_title)
@@ -107,6 +128,7 @@ pub async fn persist_merge_request(
         .bind(&merge_request.project_name)
         .bind(&merge_request.created_at)
         .bind(&merge_request.merged_at)
+        .bind(&serde_json::to_value(&merge_request.diff_stats_summary).unwrap())
     .execute(&mut conn)
     .await
     .unwrap();
@@ -149,7 +171,7 @@ pub async fn print_merge_requests(
     let mut conn = store.conn_pool.acquire().await.unwrap();
     let merge_requests: Vec<MergeRequest> = sqlx::query(
         r#"
-        SELECT mr_id, mr_title, project_id, project_name, created_at, merged_at
+        SELECT mr_id, mr_title, project_id, project_name, created_at, merged_at, diff_stats_summary
         FROM merge_requests
         WHERE updated_at > $1
         "#)
@@ -172,6 +194,10 @@ pub async fn print_merge_requests(
                     &row.get::<String, _>("merged_at"),
                     &Rfc3339,
                 ).unwrap()),
+                diff_stats_summary: match row.try_get("diff_stats_summary") {
+                    Ok(value) => Some(serde_json::from_value(value).unwrap()),
+                    Err(_) => Default::default(),
+                }
             })
             .collect()
     })

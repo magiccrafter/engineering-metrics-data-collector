@@ -20,6 +20,7 @@ create table engineering_metrics.merge_requests (
     project_id varchar not null,
     project_name varchar not null,
     created_at timestamptz not null,
+    diff_stats_summary jsonb null,
     -- created_by varchar not null,
     -- updated_at timestamptz not null,
     -- updated_by varchar not null,

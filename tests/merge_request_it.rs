@@ -1,5 +1,5 @@
 use engineering_metrics_data_collector::store::Store;
-use engineering_metrics_data_collector::component::merge_request;
+use engineering_metrics_data_collector::component::merge_request::{self, DiffStatsSummary};
 use testcontainers::clients;
 mod postgres_container;
 
@@ -12,7 +12,7 @@ use wiremock::matchers::{body_json, method, path, body_string};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
-async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_database() {
+async fn should_successfully_import_merge_requests_from_gitlab_to_the_database() {
     let docker = clients::Cli::default();
     let image = postgres_container::Postgres::default();
     let node = docker.run(image);
@@ -44,7 +44,7 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_da
     assert_eq!(result.rows_affected(), 2);
 
     // fetch concrete merge request that is merged with id equal to gid://gitlab/MergeRequest/221742778
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221742778'")
         .fetch_one(&mut conn)
@@ -55,9 +55,15 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_da
     assert_eq!(result.get::<String, _>("project_id"), "52263413");
     assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
     assert_eq!(result.get::<Option<OffsetDateTime>, _>("merged_at"), Some(OffsetDateTime::parse("2020-03-02T09:20:00Z", &Rfc3339).unwrap()));
+    assert_eq!(result.get::<Option<serde_json::Value>, _>("diff_stats_summary"), Some(json!({
+        "additions": 2,
+        "deletions": 2,
+        "changes": 4,
+        "file_count": 1,
+    })));
 
     // fetch concrete merge request that is not merged with id equal to gid://gitlab/MergeRequest/221706264
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221706264'")
         .fetch_one(&mut conn)
@@ -68,23 +74,21 @@ async fn should_successfully_import_a_single_merge_request_from_gitlab_to_the_da
     assert_eq!(result.get::<String, _>("project_id"), "52263413");
     assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:30:00Z", &Rfc3339).unwrap());
     assert_eq!(result.get::<Option<OffsetDateTime>, _>("merged_at"), Option::None);
+    assert_eq!(result.get::<Option<serde_json::Value>, _>("diff_stats_summary"), Some(serde_json::Value::Null));
 }
 
 #[tokio::test]
-async fn should_persist_and_select_one_mr_successfully() {
+async fn should_persist_and_select_one_not_merged_mr_successfully() {
     let docker = clients::Cli::default();
     let image = postgres_container::Postgres::default();
     let node = docker.run(image);
     let port = node.get_host_port_ipv4(5432);
-
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
         port
     ))
     .await;
-
     store.migrate().await.unwrap();
-
     let mut conn = store.conn_pool.acquire().await.unwrap();
 
     let mr = merge_request::MergeRequest {
@@ -94,18 +98,19 @@ async fn should_persist_and_select_one_mr_successfully() {
         project_name: "cool project 1".to_string(),
         created_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),
         merged_at: Option::None,
+        diff_stats_summary: Option::None,
     };
 
     merge_request::persist_merge_request(&store, &mr).await;
 
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary
         FROM engineering_metrics.merge_requests")
         .execute(&mut conn)
         .await
         .unwrap();
     assert_eq!(result.rows_affected(), 1);
 
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary
         FROM engineering_metrics.merge_requests")
         .fetch_one(&mut conn)
         .await
@@ -116,6 +121,57 @@ async fn should_persist_and_select_one_mr_successfully() {
     assert_eq!(result.get::<String, _>("project_id"), "gitlab/1");
     assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
     assert_eq!(result.get::<Option<OffsetDateTime>, _>("merged_at"), Option::None);
+    assert_eq!(result.get::<Option<serde_json::Value>, _>("diff_stats_summary"), Some(serde_json::Value::Null));
+}
+
+#[tokio::test]
+async fn should_persist_and_select_one_merged_mr_successfully() {
+    let docker = clients::Cli::default();
+    let image = postgres_container::Postgres::default();
+    let node = docker.run(image);
+    let port = node.get_host_port_ipv4(5432);
+    let store = Store::new(&format!(
+        "postgres://postgres:postgres@localhost:{}/postgres",
+        port
+    ))
+    .await;
+    store.migrate().await.unwrap();
+    let mut conn = store.conn_pool.acquire().await.unwrap();
+
+    let mr = merge_request::MergeRequest {
+        mr_id: "gitlab_mr/2".to_string(),
+        mr_title: "awesome issue".to_string(),
+        project_id: "gitlab/2".to_string(),
+        project_name: "cool project 2".to_string(),
+        created_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),
+        merged_at: Some(OffsetDateTime::parse("2020-03-02T09:20:00Z", &Rfc3339).unwrap()),
+        diff_stats_summary: Some(DiffStatsSummary {
+            additions: 10,
+            deletions: 5,
+            changes: 15,
+            file_count: 2,
+        }),
+    };
+
+    merge_request::persist_merge_request(&store, &mr).await;
+
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary
+        FROM engineering_metrics.merge_requests")
+        .fetch_one(&mut conn)
+        .await
+        .unwrap();
+
+    assert_eq!(result.get::<String, _>("mr_id"), "gitlab_mr/2");
+    assert_eq!(result.get::<String, _>("mr_title"), "awesome issue");
+    assert_eq!(result.get::<String, _>("project_id"), "gitlab/2");
+    assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
+    assert_eq!(result.get::<Option<OffsetDateTime>, _>("merged_at"), Some(OffsetDateTime::parse("2020-03-02T09:20:00Z", &Rfc3339).unwrap()));
+    assert_eq!(result.get::<Option<serde_json::Value>, _>("diff_stats_summary"), Some(serde_json::json!({
+        "additions": 10,
+        "deletions": 5,
+        "changes": 15,
+        "file_count": 2,
+    })));
 }
 
 #[tokio::test]
@@ -216,12 +272,7 @@ async fn get_graphql_query_response_mock() -> &'static str {
                         "project": {
                             "name": "cool_project_1"
                         },
-                        "diffStatsSummary": {
-                            "additions": 8,
-                            "deletions": 6,
-                            "changes": 14,
-                            "fileCount": 2
-                        },
+                        "diffStatsSummary": null,
                         "mergeUser": null,
                         "state": "opened"
                     }],
