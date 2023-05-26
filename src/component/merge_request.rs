@@ -17,17 +17,19 @@ pub struct MergeRequest {
     pub mr_web_url: String,
     pub project_id: String,
     pub project_name: String,
-    // `OffsetDateTime`'s default serialization format is not standard.
-    // https://docs.rs/serde_with/latest/serde_with/guide/serde_as_transformations/index.html#well-known-time-formats-for-offsetdatetime
-    // #[serde_as(as = "Rfc3339")]
     pub created_at: OffsetDateTime,
-    // created_by: String,
-    // #[serde_as(as = "Rfc3339")]
+    // date and time when the merge request was last updated
+    pub updated_at: OffsetDateTime,
+    // date and time when the merge request was merged
     pub merged_at: Option<OffsetDateTime>,
-    // merged_by: String,
-    // #[serde_as(as = "Rfc3339")]
-    // updated_at: OffsetDateTime,
-    // updated_by: String,
+    // username of the user who created the merge request, i.e. @username
+    pub created_by: String,
+    // username of the user who merged the merge request, i.e. @username
+    pub merged_by: Option<String>,
+    // boolean flag indicating if the merge request was approved
+    pub approved: bool,
+    // list of usernames of the users who approved the merge request, i.e. @username
+    pub approved_by: Option<Vec<String>>,
     // state: String,
     pub diff_stats_summary: Option<DiffStatsSummary>,
 }
@@ -78,9 +80,24 @@ pub async fn fetch_group_merge_requests(
                 &mr_ref.created_at.clone(),
                 &Rfc3339,
             ).unwrap(),
+            updated_at: OffsetDateTime::parse(
+                &mr_ref.updated_at.clone(),
+                &Rfc3339,
+            ).unwrap(),
             merged_at: mr_ref.merged_at.clone()
                 .map(|m_at| OffsetDateTime::parse(&m_at,&Rfc3339).unwrap()
             ),
+            created_by: mr_ref.author.username.clone(),
+            merged_by: mr_ref.merge_user.as_ref()
+                .map(|m_by| m_by.username.clone()
+            ),
+            approved_by: mr_ref.approved_by.as_ref()
+                .map(|a_by| a_by.nodes.as_ref().unwrap()
+                    .iter()
+                    .map(|a_by_node| a_by_node.as_ref().expect("a_by_node is None").username.clone())
+                    .collect()
+                ),
+            approved: mr_ref.approved,
             diff_stats_summary: mr_ref.diff_stats_summary.as_ref()
             .map(|diff_stats_summary| DiffStatsSummary {
                     additions: diff_stats_summary.additions as i32,
@@ -109,13 +126,18 @@ pub async fn persist_merge_request(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, mr_web_url, project_id, project_name, created_at, merged_at, diff_stats_summary)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, mr_web_url, project_id, project_name, created_at, updated_at, merged_at, 
+            created_by, merged_by, approved, approved_by, diff_stats_summary)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
             mr_title = $2,
-            merged_at = $7,
-            diff_stats_summary = $8
+            updated_at = $7,
+            merged_at = $8,
+            merged_by = $10,
+            approved = $11,
+            approved_by = $12,
+            diff_stats_summary = $13
         "#)
         .bind(&merge_request.mr_id)
         .bind(&merge_request.mr_title)
@@ -123,7 +145,12 @@ pub async fn persist_merge_request(
         .bind(&merge_request.project_id)
         .bind(&merge_request.project_name)
         .bind(merge_request.created_at)
+        .bind(merge_request.updated_at)
         .bind(merge_request.merged_at)
+        .bind(&merge_request.created_by)
+        .bind(&merge_request.merged_by)
+        .bind(merge_request.approved)
+        .bind(serde_json::to_value(&merge_request.approved_by).unwrap())
         .bind(serde_json::to_value(&merge_request.diff_stats_summary).unwrap())
     .execute(&mut conn)
     .await
@@ -187,10 +214,21 @@ pub async fn print_merge_requests(
                     &row.get::<String, _>("created_at"),
                     &Rfc3339,
                 ).unwrap(),
+                updated_at: OffsetDateTime::parse(
+                    &row.get::<String, _>("updated_at"),
+                    &Rfc3339,
+                ).unwrap(),
                 merged_at: Some(OffsetDateTime::parse(
                     &row.get::<String, _>("merged_at"),
                     &Rfc3339,
                 ).unwrap()),
+                created_by: row.get("created_by"),
+                merged_by: row.get("merged_by"),
+                approved: row.get("approved"),
+                approved_by: match row.try_get("approved_by") {
+                    Ok(value) => Some(serde_json::from_value(value).unwrap()),
+                    Err(_) => None,
+                },
                 diff_stats_summary: match row.try_get("diff_stats_summary") {
                     Ok(value) => Some(serde_json::from_value(value).unwrap()),
                     Err(_) => Default::default(),

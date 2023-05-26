@@ -21,13 +21,13 @@ create table engineering_metrics.merge_requests (
     project_id varchar not null,
     project_name varchar not null,
     created_at timestamptz not null,
-    diff_stats_summary jsonb null,
-    -- created_by varchar not null,
-    -- updated_at timestamptz not null,
-    -- updated_by varchar not null,
+    updated_at timestamptz not null,
     merged_at timestamptz null,
-    -- merged_by varchar not null,
-    -- mr_state varchar not null,
+    created_by varchar not null,
+    merged_by varchar null,
+    approved boolean not null,
+    approved_by jsonb null,
+    diff_stats_summary jsonb null,
     primary key (mr_id)
 );
 
