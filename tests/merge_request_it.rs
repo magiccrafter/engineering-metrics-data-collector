@@ -5,10 +5,9 @@ mod postgres_container;
 
 use sqlx::Row;
 use serde_json::json;
-use reqwest::Client;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
-use wiremock::matchers::{body_json, method, path, body_string};
+use wiremock::matchers::{method};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -36,7 +35,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     merge_request::import_merge_requests(&mock_server.uri(), DUMMY, DUMMY, DUMMY, &store).await;
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary, mr_web_url
         FROM engineering_metrics.merge_requests")
         .execute(&mut conn)
         .await
@@ -44,7 +43,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     assert_eq!(result.rows_affected(), 2);
 
     // fetch concrete merge request that is merged with id equal to gid://gitlab/MergeRequest/221742778
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary, mr_web_url
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221742778'")
         .fetch_one(&mut conn)
@@ -52,6 +51,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
         .unwrap();
     assert_eq!(result.get::<String, _>("mr_id"), "gid://gitlab/MergeRequest/221742778");
     assert_eq!(result.get::<String, _>("mr_title"), "Resolve \"pipeline check\"");
+    assert_eq!(result.get::<String, _>("mr_web_url"), "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/221742778");
     assert_eq!(result.get::<String, _>("project_id"), "52263413");
     assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
     assert_eq!(result.get::<Option<OffsetDateTime>, _>("merged_at"), Some(OffsetDateTime::parse("2020-03-02T09:20:00Z", &Rfc3339).unwrap()));
@@ -63,7 +63,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     })));
 
     // fetch concrete merge request that is not merged with id equal to gid://gitlab/MergeRequest/221706264
-    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary
+    let result = sqlx::query("SELECT mr_id, mr_title, project_id, created_at, merged_at, diff_stats_summary, mr_web_url
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221706264'")
         .fetch_one(&mut conn)
@@ -71,6 +71,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
         .unwrap();
     assert_eq!(result.get::<String, _>("mr_id"), "gid://gitlab/MergeRequest/221706264");
     assert_eq!(result.get::<String, _>("mr_title"), "Resolve \"Increase the size of login session cache\"");
+    assert_eq!(result.get::<String, _>("mr_web_url"), "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/221706264");
     assert_eq!(result.get::<String, _>("project_id"), "52263413");
     assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:30:00Z", &Rfc3339).unwrap());
     assert_eq!(result.get::<Option<OffsetDateTime>, _>("merged_at"), Option::None);
@@ -94,6 +95,7 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
     let mr = merge_request::MergeRequest {
         mr_id: "gitlab/1".to_string(),
         mr_title: "awesome issue".to_string(),
+        mr_web_url: "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/1".to_string(),
         project_id: "gitlab/1".to_string(),
         project_name: "cool project 1".to_string(),
         created_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),
@@ -141,6 +143,7 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
     let mr = merge_request::MergeRequest {
         mr_id: "gitlab_mr/2".to_string(),
         mr_title: "awesome issue".to_string(),
+        mr_web_url: "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/2".to_string(),
         project_id: "gitlab/2".to_string(),
         project_name: "cool project 2".to_string(),
         created_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),

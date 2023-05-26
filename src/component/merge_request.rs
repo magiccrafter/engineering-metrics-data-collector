@@ -14,6 +14,7 @@ use time::OffsetDateTime;
 pub struct MergeRequest {
     pub mr_id: String,
     pub mr_title: String,
+    pub mr_web_url: String,
     pub project_id: String,
     pub project_name: String,
     // `OffsetDateTime`'s default serialization format is not standard.
@@ -70,6 +71,7 @@ pub async fn fetch_group_merge_requests(
         merge_requests.push(MergeRequest {
             mr_id: mr_ref.id.clone(),
             mr_title: mr_ref.title.clone(),
+            mr_web_url: mr_ref.web_url.clone(),
             project_id: mr_ref.project_id.clone().to_string(),
             project_name: mr_ref.project.name.clone(),
             created_at: OffsetDateTime::parse(
@@ -107,16 +109,17 @@ pub async fn persist_merge_request(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, project_id, project_name, created_at, merged_at, diff_stats_summary)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, mr_web_url, project_id, project_name, created_at, merged_at, diff_stats_summary)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
             mr_title = $2,
-            merged_at = $6,
-            diff_stats_summary = $7
+            merged_at = $7,
+            diff_stats_summary = $8
         "#)
         .bind(&merge_request.mr_id)
         .bind(&merge_request.mr_title)
+        .bind(&merge_request.mr_web_url)
         .bind(&merge_request.project_id)
         .bind(&merge_request.project_name)
         .bind(merge_request.created_at)
@@ -177,6 +180,7 @@ pub async fn print_merge_requests(
             .map(|row| MergeRequest {
                 mr_id: row.get("mr_id"),
                 mr_title: row.get("mr_title"),
+                mr_web_url: row.get("mr_web_url"),
                 project_id: row.get("project_id"),
                 project_name: row.get("project_name"),
                 created_at: OffsetDateTime::parse(
