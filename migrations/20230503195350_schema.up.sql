@@ -28,6 +28,7 @@ create table engineering_metrics.merge_requests (
     approved boolean not null,
     approved_by jsonb null,
     diff_stats_summary jsonb null,
+    labels jsonb null,
     primary key (mr_id)
 );
 

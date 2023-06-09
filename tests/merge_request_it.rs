@@ -120,6 +120,7 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
         approved: false,
         approved_by: Option::None,
         diff_stats_summary: Option::None,
+        labels: Option::None,
     };
 
     merge_request::persist_merge_request(&store, &mr).await;
@@ -186,6 +187,7 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
             changes: 15,
             file_count: 2,
         }),
+        labels: Some(vec!["bug".to_string(), "engineering".to_string()]),
     };
 
     merge_request::persist_merge_request(&store, &mr).await;

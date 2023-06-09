@@ -32,6 +32,7 @@ pub struct MergeRequest {
     pub approved_by: Option<Vec<String>>,
     // state: String,
     pub diff_stats_summary: Option<DiffStatsSummary>,
+    pub labels: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -106,6 +107,12 @@ pub async fn fetch_group_merge_requests(
                     file_count: diff_stats_summary.file_count as i32,
                 }
             ),
+            labels: mr_ref.labels.as_ref()
+                .map(|labels| labels.nodes.as_ref().unwrap()
+                    .iter()
+                    .map(|label| label.as_ref().expect("label is None").title.clone())
+                    .collect()
+                ),
         });
     }
     
@@ -127,8 +134,8 @@ pub async fn persist_merge_request(
     sqlx::query(
         r#"
         INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, mr_web_url, project_id, project_name, created_at, updated_at, merged_at, 
-            created_by, merged_by, approved, approved_by, diff_stats_summary)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            created_by, merged_by, approved, approved_by, diff_stats_summary, labels)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
             mr_title = $2,
@@ -137,7 +144,8 @@ pub async fn persist_merge_request(
             merged_by = $10,
             approved = $11,
             approved_by = $12,
-            diff_stats_summary = $13
+            diff_stats_summary = $13,
+            labels = $14
         "#)
         .bind(&merge_request.mr_id)
         .bind(&merge_request.mr_title)
@@ -152,6 +160,7 @@ pub async fn persist_merge_request(
         .bind(merge_request.approved)
         .bind(serde_json::to_value(&merge_request.approved_by).unwrap())
         .bind(serde_json::to_value(&merge_request.diff_stats_summary).unwrap())
+        .bind(serde_json::to_value(&merge_request.labels).unwrap())
     .execute(&mut conn)
     .await
     .unwrap();
@@ -230,6 +239,10 @@ pub async fn print_merge_requests(
                     Err(_) => None,
                 },
                 diff_stats_summary: match row.try_get("diff_stats_summary") {
+                    Ok(value) => Some(serde_json::from_value(value).unwrap()),
+                    Err(_) => Default::default(),
+                },
+                labels: match row.try_get("labels") {
                     Ok(value) => Some(serde_json::from_value(value).unwrap()),
                     Err(_) => Default::default(),
                 }
