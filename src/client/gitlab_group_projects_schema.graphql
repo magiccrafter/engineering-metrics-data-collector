@@ -1,0 +1,44 @@
+schema {
+  query: Query
+}
+
+type Query {
+  queryComplexity: QueryComplexity!
+  group(fullPath: ID!): Group
+}
+
+type QueryComplexity {
+  score: Int
+  limit: Int
+}
+
+type Group {
+  id: ID!
+  name: String!
+  projects(
+    includeSubgroups: Boolean!
+    first: Int!
+    after: String
+  ): ProjectConnection!
+}
+
+type ProjectConnection {
+  nodes: [Project]
+  pageInfo: PageInfo!
+}
+
+type Project {
+  id: ID!
+  name: String!
+  path: String!
+  fullPath: String!
+  webUrl: String!
+  topics: [String!]
+}
+
+type PageInfo {
+  startCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  endCursor: String
+}

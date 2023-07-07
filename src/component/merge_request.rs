@@ -67,7 +67,7 @@ pub async fn fetch_group_merge_requests(
         .await
         .fetch_group_merge_requests(gitlab_graphql_client, group_full_path, updated_after, after_pointer_token)
         .await;
-    println!("group_data: {:?}", &group_data);
+    // println!("group_data: {:?}", &group_data);
 
     let mut merge_requests: Vec<MergeRequest> = Vec::new();
     for mr in group_data.merge_requests.nodes.expect("GroupMergeReqsGroupMergeRequestsNodes is None") {

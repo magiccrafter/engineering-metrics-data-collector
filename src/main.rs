@@ -1,4 +1,5 @@
 use engineering_metrics_data_collector::component::merge_request;
+use engineering_metrics_data_collector::component::project;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -24,11 +25,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gitlab_graphql_endpoint = env::var("GITLAB_GRAPHQL_ENDPOINT").expect("GITLAB_GRAPHQL_ENDPOINT environment variable is not set.").to_string();
     let authorization_header = env::var("EM_TOKEN").expect("EM_TOKEN environment variable is not set.").to_string();
     let updated_after = env::var("UPDATED_AFTER").expect("UPDATED_AFTER environment variable is not set.").to_string();
-    let group_full_path = env::var("GROUP_FULL_PATH").expect("GROUP_FULL_PATH environment variable is not set.").to_string();
+    let group_full_paths = env::var("GROUP_FULL_PATH_LIST").expect("GROUP_FULL_PATHS environment variable is not set.").to_string();
 
     let store = Store::new(&database_url).await;
     store.migrate().await.unwrap();
-    merge_request::import_merge_requests(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &updated_after, &store).await;
+
+    let group_full_paths: Vec<&str> = group_full_paths.split(",").collect();
+    for group_full_path in group_full_paths {
+        project::import_projects(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &store).await;
+        merge_request::import_merge_requests(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &updated_after, &store).await; 
+    }
 
     Ok(())
 }

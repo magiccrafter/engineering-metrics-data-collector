@@ -19,6 +19,7 @@ type Group {
     includeSubgroups: Boolean!
     first: Int!
     updatedAfter: Time!
+    after: String
     sort: String!
   ): MergeRequestConnection!
 }

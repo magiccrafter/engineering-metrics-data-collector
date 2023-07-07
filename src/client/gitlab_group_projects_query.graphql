@@ -1,0 +1,28 @@
+query GroupProjects($group_full_path: ID!, $after: String) {
+  queryComplexity {
+    score
+    limit
+  }
+  group(fullPath: $group_full_path) {
+    id
+    name
+    projects(
+      includeSubgroups: true
+      first: 50
+      after: $after
+    ) {
+      nodes {
+        id
+        name
+        path
+        fullPath
+        webUrl
+        topics
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}
