@@ -17,6 +17,7 @@ pub struct MergeRequest {
     pub mr_web_url: String,
     pub project_id: String,
     pub project_name: String,
+    pub project_path: String,
     pub created_at: OffsetDateTime,
     // date and time when the merge request was last updated
     pub updated_at: OffsetDateTime,
@@ -77,6 +78,7 @@ pub async fn fetch_group_merge_requests(
             mr_web_url: mr_ref.web_url.clone(),
             project_id: mr_ref.project_id.clone().to_string(),
             project_name: mr_ref.project.name.clone(),
+            project_path: mr_ref.project.path.clone(),
             created_at: OffsetDateTime::parse(
                 &mr_ref.created_at.clone(),
                 &Rfc3339,
@@ -133,25 +135,27 @@ pub async fn persist_merge_request(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, mr_web_url, project_id, project_name, created_at, updated_at, merged_at, 
+        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, mr_web_url, project_id, project_name, project_path, 
+            created_at, updated_at, merged_at, 
             created_by, merged_by, approved, approved_by, diff_stats_summary, labels)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
             mr_title = $2,
-            updated_at = $7,
-            merged_at = $8,
-            merged_by = $10,
-            approved = $11,
-            approved_by = $12,
-            diff_stats_summary = $13,
-            labels = $14
+            updated_at = $8,
+            merged_at = $9,
+            merged_by = $11,
+            approved = $12,
+            approved_by = $13,
+            diff_stats_summary = $14,
+            labels = $15
         "#)
         .bind(&merge_request.mr_id)
         .bind(&merge_request.mr_title)
         .bind(&merge_request.mr_web_url)
         .bind(&merge_request.project_id)
         .bind(&merge_request.project_name)
+        .bind(&merge_request.project_path)
         .bind(merge_request.created_at)
         .bind(merge_request.updated_at)
         .bind(merge_request.merged_at)
@@ -203,7 +207,7 @@ pub async fn print_merge_requests(
     let mut conn = store.conn_pool.acquire().await.unwrap();
     let merge_requests: Vec<MergeRequest> = sqlx::query(
         r#"
-        SELECT mr_id, mr_title, project_id, project_name, created_at, merged_at, diff_stats_summary
+        SELECT mr_id, mr_title, project_id, project_name, project_path, created_at, merged_at, diff_stats_summary
         FROM merge_requests
         WHERE updated_at > $1
         "#)
@@ -219,6 +223,7 @@ pub async fn print_merge_requests(
                 mr_web_url: row.get("mr_web_url"),
                 project_id: row.get("project_id"),
                 project_name: row.get("project_name"),
+                project_path: row.get("project_path"),
                 created_at: OffsetDateTime::parse(
                     &row.get::<String, _>("created_at"),
                     &Rfc3339,

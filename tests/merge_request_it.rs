@@ -112,6 +112,7 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
         mr_web_url: "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/1".to_string(),
         project_id: "gitlab/1".to_string(),
         project_name: "cool project 1".to_string(),
+        project_path: "cool-project-x".to_string(),
         created_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),
         updated_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),
         merged_at: Option::None,
@@ -174,6 +175,7 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
         mr_web_url: "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/2".to_string(),
         project_id: "gitlab/2".to_string(),
         project_name: "cool project 2".to_string(),
+        project_path: "cool-project-2".to_string(),
         created_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),
         updated_at: OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap(),
         merged_at: Some(OffsetDateTime::parse("2020-03-02T09:20:00Z", &Rfc3339).unwrap()),
@@ -192,7 +194,7 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
 
     merge_request::persist_merge_request(&store, &mr).await;
 
-    let result = sqlx::query("SELECT mr_id, mr_title, mr_web_url, project_id, created_at, merged_at, diff_stats_summary,
+    let result = sqlx::query("SELECT mr_id, mr_title, mr_web_url, project_id, project_name, project_path, created_at, merged_at, diff_stats_summary,
         project_name, updated_at, created_by, merged_by, approved, approved_by
         FROM engineering_metrics.merge_requests")
         .fetch_one(&mut conn)
@@ -203,6 +205,8 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
     assert_eq!(result.get::<String, _>("mr_title"), "awesome issue");
     assert_eq!(result.get::<String, _>("mr_web_url"), "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/2");
     assert_eq!(result.get::<String, _>("project_id"), "gitlab/2");
+    assert_eq!(result.get::<String, _>("project_name"), "cool project 2");
+    assert_eq!(result.get::<String, _>("project_path"), "cool-project-2");
     assert_eq!(result.get::<OffsetDateTime, _>("created_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
     assert_eq!(result.get::<OffsetDateTime, _>("updated_at"), OffsetDateTime::parse("2020-03-02T09:00:00Z", &Rfc3339).unwrap());
     assert_eq!(result.get::<Option<OffsetDateTime>, _>("merged_at"), Some(OffsetDateTime::parse("2020-03-02T09:20:00Z", &Rfc3339).unwrap()));
@@ -278,7 +282,8 @@ async fn get_graphql_query_response_mock() -> &'static str {
                         "mergedAt": "2020-03-02T09:20:00Z",
                         "projectId": 52263413,
                         "project": {
-                            "name": "cool_project_1"
+                            "name": "cool_project_1",
+                            "path": "cool-project-1"
                         },
                         "diffStatsSummary": {
                             "additions": 2,
@@ -314,7 +319,8 @@ async fn get_graphql_query_response_mock() -> &'static str {
                         "mergedAt": null,
                         "projectId": 52263413,
                         "project": {
-                            "name": "cool_project_1"
+                            "name": "cool_project_1",
+                            "path": "cool-project-1"
                         },
                         "diffStatsSummary": null,
                         "mergeUser": null,

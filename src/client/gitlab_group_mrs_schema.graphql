@@ -86,6 +86,7 @@ type PageInfo {
 type Project {
   id: ID!
   name: String!
+  path: String!
   webUrl: String!
 }
 
