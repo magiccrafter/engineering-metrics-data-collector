@@ -197,6 +197,7 @@ pub async fn import_merge_requests(
         after_pointer_token = res.page_info.end_cursor;
         has_more_merge_requests = res.page_info.has_next_page;
     }
+    println!("Done importing merge requests data for group={}.", &group_full_path);
 }
 
 /// select all merge requests from postgresql where merge request updated_after column is creater than and print them

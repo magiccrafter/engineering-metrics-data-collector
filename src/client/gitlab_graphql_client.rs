@@ -44,8 +44,6 @@ impl GitlabGraphQLClient {
         let response_data = response.data.expect("missing response data");
         let group_data = response_data.group.unwrap();
 
-        println!("---");
-
         group_data
     }
 
@@ -67,8 +65,6 @@ impl GitlabGraphQLClient {
 
         let response_data = response.data.expect("missing response data");
         let group_data = response_data.group.unwrap();
-
-        println!("---");
 
         group_data
     }

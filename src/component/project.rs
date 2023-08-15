@@ -110,4 +110,5 @@ pub async fn import_projects(
         after_pointer_token = res.page_info.end_cursor;
         has_more = res.page_info.has_next_page;
     }
+    println!("Done importing projects data for group={}.", &group_full_path);
 }

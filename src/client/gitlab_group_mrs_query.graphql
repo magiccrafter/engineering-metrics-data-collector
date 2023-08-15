@@ -8,7 +8,7 @@ query GroupMergeReqs($group_full_path: ID!, $updated_after: Time!, $after: Strin
     name
     mergeRequests(
       includeSubgroups: true
-      first: 10
+      first: 20
       after: $after
       updatedAfter: $updated_after
       sort: CREATED_DESC
