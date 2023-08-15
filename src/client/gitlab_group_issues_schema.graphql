@@ -1,0 +1,73 @@
+schema {
+  query: Query
+}
+
+type Query {
+  queryComplexity: QueryComplexity!
+  group(fullPath: ID!): Group
+}
+
+type QueryComplexity {
+  score: Int
+  limit: Int
+}
+
+type Group {
+  id: ID!
+  name: String!
+  issues(
+    includeSubgroups: Boolean!
+    first: Int!
+    updatedAfter: Time!
+    after: String
+    sort: String!
+  ): IssueConnection!
+}
+
+type IssueConnection {
+  nodes: [Issue]
+  pageInfo: PageInfo!
+}
+
+type Issue {
+  id: ID!
+  title: String!
+  webUrl: String!
+  labels: LabelConnection
+  author: UserCore!
+  createdAt: String!
+  updatedAt: String!
+  closedAt: String
+  updatedBy: UserCore
+  projectId: Int!
+  state: IssueState!
+}
+
+type LabelConnection {
+  nodes: [Label]
+}
+
+type Label {
+  title: String!
+}
+
+type UserCore {
+  id: ID!
+  username: String!
+}
+
+type PageInfo {
+  startCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  endCursor: String
+}
+
+enum IssueState {
+  opened
+  closed
+  locked
+  all
+}
+
+scalar Time

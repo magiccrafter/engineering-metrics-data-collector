@@ -1,0 +1,42 @@
+query GroupIssues($group_full_path: ID!, $updated_after: Time!, $after: String) {
+  queryComplexity {
+    score
+    limit
+  }
+  group(fullPath: $group_full_path) {
+    id
+    name
+    issues(
+      includeSubgroups: true
+      first: 20
+      after: $after
+      updatedAfter: $updated_after
+      sort: CREATED_DESC
+    ) {
+      nodes {
+        id
+        title
+        webUrl
+        projectId
+        createdAt
+        updatedAt
+        updatedBy {
+          username
+        }
+        closedAt
+        labels {
+          nodes {
+            title
+          }
+        }
+        author {
+          username
+        }
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+}

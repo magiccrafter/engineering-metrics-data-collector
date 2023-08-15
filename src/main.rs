@@ -1,5 +1,4 @@
-use engineering_metrics_data_collector::component::merge_request;
-use engineering_metrics_data_collector::component::project;
+use engineering_metrics_data_collector::component::{merge_request, project, issue};
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -34,6 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for group_full_path in group_full_paths {
         project::import_projects(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &store).await;
         merge_request::import_merge_requests(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &updated_after, &store).await; 
+        issue::import_issues(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &updated_after, &store).await;
     }
 
     Ok(())
@@ -57,8 +57,6 @@ struct Issue {
     closed_at: OffsetDateTime,
     closed_by: String,
 }
-
-
 
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug)]

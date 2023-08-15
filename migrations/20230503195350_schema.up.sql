@@ -15,13 +15,14 @@ create index idx_projects_path on engineering_metrics.projects (p_path);
 create table engineering_metrics.issues (
     issue_id varchar not null,
     issue_title varchar not null,
+    issue_web_url varchar not null,
     project_id varchar not null,
     created_at timestamptz not null,
     created_by varchar not null,
     updated_at timestamptz not null,
-    updated_by varchar not null,
-    closed_at timestamptz not null,
-    closed_by varchar not null,
+    updated_by varchar null,
+    closed_at timestamptz null,
+    labels jsonb null,
     primary key (issue_id)
 );
 
