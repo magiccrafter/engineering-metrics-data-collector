@@ -49,9 +49,9 @@ create table engineering_metrics.merge_requests (
 
 create table engineering_metrics.closed_issues_on_merge (
     issue_id varchar not null,
-    issue_iid varchar not null,
+    issue_iid varchar null,
     mr_id varchar not null,
     mr_iid varchar not null,
     project_id varchar not null,
-    primary key (issue_id)
+    primary key (issue_id, mr_id)
 );

@@ -184,7 +184,7 @@ pub async fn persist_closed_issues_on_merge(
         r#"
         INSERT INTO engineering_metrics.closed_issues_on_merge (issue_id, issue_iid, mr_id, mr_iid, project_id)
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (issue_id) DO
+        ON CONFLICT (issue_id, mr_id) DO
         UPDATE SET
             issue_iid = $2,
             mr_id = $3,
@@ -264,9 +264,19 @@ pub async fn fetch_closed_issues_on_merge(
     merge_request_id: &str,
     merge_request_iid: &str,
 ) -> Vec<ClosedIssueOnMerge> {
-    let group_data = gitlab_rest_client::GitlabRestClient::new(authorization_header)
-        .await
+    let rest_client = gitlab_rest_client::GitlabRestClient::new(authorization_header).await;
+    let group_data = rest_client
         .fetch_closed_issues_on_merge(gitlab_rest_client, project_id, merge_request_id, merge_request_iid)
         .await;
-    group_data.expect("Expect closed_issues_on_merge to be Some.")
+
+    match group_data {
+        Ok(data) => data,
+        Err(_) => {
+            let external_data = rest_client
+                .fetch_closed_external_issues(gitlab_rest_client, project_id, merge_request_id, merge_request_iid)
+                .await
+                .expect(&format!("Expect closed_issues_on_merge to be Some. Error fetching closed issues on merge for mr={} and project_id={}", &merge_request_iid, &project_id));
+            external_data
+        }
+    }
 }
