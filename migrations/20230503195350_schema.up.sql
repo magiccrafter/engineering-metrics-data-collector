@@ -14,6 +14,7 @@ create index idx_projects_path on engineering_metrics.projects (p_path);
 
 create table engineering_metrics.issues (
     issue_id varchar not null,
+    issue_iid varchar not null,
     issue_title varchar not null,
     issue_web_url varchar not null,
     project_id varchar not null,
@@ -28,6 +29,7 @@ create table engineering_metrics.issues (
 
 create table engineering_metrics.merge_requests (
     mr_id varchar not null,
+    mr_iid varchar not null,
     mr_title varchar not null,
     mr_web_url varchar not null,
     project_id varchar not null,
@@ -47,8 +49,9 @@ create table engineering_metrics.merge_requests (
 
 create table engineering_metrics.closed_issues_on_merge (
     issue_id varchar not null,
+    issue_iid varchar not null,
     mr_id varchar not null,
-    mr_title varchar not null,
+    mr_iid varchar not null,
     project_id varchar not null,
-    primary key (issue_id, mr_id)
+    primary key (issue_id)
 );

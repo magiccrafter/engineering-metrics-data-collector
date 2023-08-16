@@ -31,6 +31,7 @@ type IssueConnection {
 
 type Issue {
   id: ID!
+  iid: ID!
   title: String!
   webUrl: String!
   labels: LabelConnection

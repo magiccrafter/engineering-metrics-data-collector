@@ -31,6 +31,7 @@ type MergeRequestConnection {
 
 type MergeRequest {
   id: ID!
+  iid: ID!
   title: String!
   draft: Boolean!
   webUrl: String!

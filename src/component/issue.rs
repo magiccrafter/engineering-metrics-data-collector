@@ -8,6 +8,7 @@ use time::OffsetDateTime;
 #[derive(Debug)]
 pub struct Issue {
     pub issue_id: String,
+    pub issue_iid: String,
     pub issue_title: String,
     pub issue_web_url: String,
     pub project_id: String,
@@ -52,6 +53,7 @@ pub async fn fetch_group_issues(
         let mr_ref = mr.as_ref().expect("mr is None");
         issues.push(Issue {
             issue_id: mr_ref.id.clone(),
+            issue_iid: mr_ref.iid.clone(),
             issue_title: mr_ref.title.clone(),
             issue_web_url: mr_ref.web_url.clone(),
             project_id: mr_ref.project_id.clone().to_string(),
@@ -99,21 +101,23 @@ pub async fn persist_issue(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.issues (issue_id, issue_title, issue_web_url, labels, created_at, updated_at, closed_at, created_by, updated_by, project_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO engineering_metrics.issues (issue_id, issue_iid, issue_title, issue_web_url, labels, created_at, updated_at, closed_at, created_by, updated_by, project_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (issue_id) DO 
         UPDATE SET 
-            issue_title = $2,
-            issue_web_url = $3,
-            labels = $4,
-            created_at = $5,
-            updated_at = $6,
-            closed_at = $7,
-            created_by = $8,
-            updated_by = $9,
-            project_id = $10
+            issue_iid = $2,
+            issue_title = $3,
+            issue_web_url = $4,
+            labels = $5,
+            created_at = $6,
+            updated_at = $7,
+            closed_at = $8,
+            created_by = $9,
+            updated_by = $10,
+            project_id = $11
         "#)
         .bind(&issue.issue_id)
+        .bind(&issue.issue_iid)
         .bind(&issue.issue_title)
         .bind(&issue.issue_web_url)
         .bind(serde_json::to_value(&issue.labels).unwrap())

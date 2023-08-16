@@ -35,7 +35,7 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
     issue::import_issues(&mock_server.uri(), DUMMY, DUMMY, DUMMY, &store).await;
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
-    let result = sqlx::query("SELECT issue_id, issue_title, issue_web_url, project_id, created_at, closed_at
+    let result = sqlx::query("SELECT issue_id, issue_iid, issue_title, issue_web_url, project_id, created_at, closed_at
         FROM engineering_metrics.issues")
         .execute(&mut conn)
         .await
@@ -43,7 +43,7 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
     assert_eq!(result.rows_affected(), 2);
 
     // fetch concrete issue that is merged with id equal to gid://gitlab/Issue/111122223
-    let result = sqlx::query("SELECT issue_id, issue_title, issue_web_url, project_id, created_at, created_by, 
+    let result = sqlx::query("SELECT issue_id, issue_iid, issue_title, issue_web_url, project_id, created_at, created_by, 
             updated_at, updated_by, closed_at, labels
         FROM engineering_metrics.issues
         WHERE issue_id = 'gid://gitlab/Issue/111122223'")
@@ -51,6 +51,7 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
         .await
         .unwrap();
     assert_eq!(result.get::<String, _>("issue_id"), "gid://gitlab/Issue/111122223");
+    assert_eq!(result.get::<String, _>("issue_iid"), "123");
     assert_eq!(result.get::<String, _>("issue_title"), "fancy title 1");
     assert_eq!(result.get::<String, _>("issue_web_url"), "https://gitlab.com/group-1/group-2/project-1/-/issues/27");
     assert_eq!(result.get::<String, _>("project_id"), "40000011");
@@ -63,7 +64,7 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
    
 
     // fetch concrete issue that is merged with id equal to gid://gitlab/Issue/111122224
-    let result = sqlx::query("SELECT issue_id, issue_title, issue_web_url, project_id, created_at, created_by, 
+    let result = sqlx::query("SELECT issue_id, issue_iid, issue_title, issue_web_url, project_id, created_at, created_by, 
             updated_at, updated_by, closed_at, labels
         FROM engineering_metrics.issues
         WHERE issue_id = 'gid://gitlab/Issue/111122224'")
@@ -71,6 +72,7 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
         .await
         .unwrap();
     assert_eq!(result.get::<String, _>("issue_id"), "gid://gitlab/Issue/111122224");
+    assert_eq!(result.get::<String, _>("issue_iid"), "456");
     assert_eq!(result.get::<String, _>("issue_title"), "fancy title 2");
     assert_eq!(result.get::<String, _>("issue_web_url"), "https://gitlab.com/group-1/group-3/project-5/-/issues/46");
     assert_eq!(result.get::<String, _>("project_id"), "40000012");
@@ -116,6 +118,7 @@ async fn should_persist_and_select_one_issue_successfully() {
 
     let mr = issue::Issue {
         issue_id: "gitlab_issue/123".to_string(),
+        issue_iid: "123456".to_string(),
         issue_title: "awesome issue".to_string(),
         issue_web_url: "https://gitlab.com/gitlab-org/gitlab/-/issue/123".to_string(),
         project_id: "gitlab/2".to_string(),
@@ -129,7 +132,7 @@ async fn should_persist_and_select_one_issue_successfully() {
 
     issue::persist_issue(&store, &mr).await;
 
-    let result = sqlx::query("SELECT issue_id, issue_title, issue_web_url, project_id, created_at, updated_at, closed_at, created_by, updated_by, labels
+    let result = sqlx::query("SELECT issue_id, issue_iid, issue_title, issue_web_url, project_id, created_at, updated_at, closed_at, created_by, updated_by, labels
         FROM engineering_metrics.issues
         WHERE issue_id = 'gitlab_issue/123'")
         .fetch_one(&mut conn)
@@ -137,6 +140,7 @@ async fn should_persist_and_select_one_issue_successfully() {
         .unwrap();
 
     assert_eq!(result.get::<String, _>("issue_id"), "gitlab_issue/123");
+    assert_eq!(result.get::<String, _>("issue_iid"), "123456");
     assert_eq!(result.get::<String, _>("issue_title"), "awesome issue");
     assert_eq!(result.get::<String, _>("issue_web_url"), "https://gitlab.com/gitlab-org/gitlab/-/issue/123");
     assert_eq!(result.get::<String, _>("project_id"), "gitlab/2");
@@ -163,6 +167,7 @@ async fn get_graphql_query_response_mock() -> &'static str {
                     "nodes": [
                       {
                         "id": "gid://gitlab/Issue/111122223",
+                        "iid": "123",
                         "createdAt": "2023-08-15T13:27:19Z",
                         "closedAt": null,
                         "projectId": 40000011,
@@ -182,6 +187,7 @@ async fn get_graphql_query_response_mock() -> &'static str {
                       },
                       {
                         "id": "gid://gitlab/Issue/111122224",
+                        "iid": "456",
                         "createdAt": "2023-08-15T13:16:48Z",
                         "closedAt": null,
                         "projectId": 40000012,

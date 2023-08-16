@@ -15,6 +15,7 @@ query GroupIssues($group_full_path: ID!, $updated_after: Time!, $after: String) 
     ) {
       nodes {
         id
+        iid
         title
         webUrl
         projectId

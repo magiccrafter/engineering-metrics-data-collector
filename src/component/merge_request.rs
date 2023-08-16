@@ -1,4 +1,6 @@
 use crate::client::gitlab_graphql_client;
+use crate::client::gitlab_rest_client;
+use crate::client::gitlab_rest_client::ClosedIssueOnMerge;
 use crate::store::Store;
 
 use serde::Deserialize;
@@ -12,6 +14,7 @@ use time::OffsetDateTime;
 #[derive(Debug)]
 pub struct MergeRequest {
     pub mr_id: String,
+    pub mr_iid: String,
     pub mr_title: String,
     pub mr_web_url: String,
     pub project_id: String,
@@ -73,6 +76,7 @@ pub async fn fetch_group_merge_requests(
         let mr_ref = mr.as_ref().expect("mr is None");
         merge_requests.push(MergeRequest {
             mr_id: mr_ref.id.clone(),
+            mr_iid: mr_ref.iid.clone(),
             mr_title: mr_ref.title.clone(),
             mr_web_url: mr_ref.web_url.clone(),
             project_id: mr_ref.project_id.clone().to_string(),
@@ -134,22 +138,24 @@ pub async fn persist_merge_request(
 
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_title, mr_web_url, project_id, project_name, project_path, 
+        INSERT INTO engineering_metrics.merge_requests (mr_id, mr_iid, mr_title, mr_web_url, project_id, project_name, project_path, 
             created_at, updated_at, merged_at, 
             created_by, merged_by, approved, approved_by, diff_stats_summary, labels)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         ON CONFLICT (mr_id) DO 
         UPDATE SET 
-            mr_title = $2,
-            updated_at = $8,
-            merged_at = $9,
-            merged_by = $11,
-            approved = $12,
-            approved_by = $13,
-            diff_stats_summary = $14,
-            labels = $15
+            mr_iid = $2,
+            mr_title = $3,
+            updated_at = $9,
+            merged_at = $10,
+            merged_by = $12,
+            approved = $13,
+            approved_by = $14,
+            diff_stats_summary = $15,
+            labels = $16
         "#)
         .bind(&merge_request.mr_id)
+        .bind(&merge_request.mr_iid)
         .bind(&merge_request.mr_title)
         .bind(&merge_request.mr_web_url)
         .bind(&merge_request.project_id)
@@ -169,14 +175,40 @@ pub async fn persist_merge_request(
     .unwrap();
 }
 
+pub async fn persist_closed_issues_on_merge(
+    store: &Store,
+    issue: &ClosedIssueOnMerge,
+) {
+    let mut conn = store.conn_pool.acquire().await.unwrap();
+    sqlx::query(
+        r#"
+        INSERT INTO engineering_metrics.closed_issues_on_merge (issue_id, issue_iid, mr_id, mr_iid, project_id)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (issue_id) DO
+        UPDATE SET
+            issue_iid = $2,
+            mr_id = $3,
+            mr_iid = $4,
+            project_id = $5
+        "#)
+        .bind(&issue.issue_id)
+        .bind(&issue.issue_iid)
+        .bind(&issue.merge_request_id)
+        .bind(&issue.merge_request_iid)
+        .bind(&issue.project_id)
+    .execute(&mut conn)
+    .await
+    .unwrap();
+}
+
 pub async fn import_merge_requests(
+    gitlab_rest_endpoint: &str,
     gitlab_graphql_client: &str,
     authorization_header: &str,
     group_full_path: &str,
     updated_after: &str,
     store: &Store,
 ) {
-
     let mut has_more_merge_requests = true;
     let mut after_pointer_token = Option::None;
 
@@ -191,10 +223,50 @@ pub async fn import_merge_requests(
 
         for merge_request in res.merge_requests {
             persist_merge_request(store, &merge_request).await;
+            import_closed_issues_on_merge(gitlab_rest_endpoint, authorization_header, 
+                store, &merge_request.project_id, 
+                &merge_request.mr_id, &merge_request.mr_iid).await;
         }
 
         after_pointer_token = res.page_info.end_cursor;
         has_more_merge_requests = res.page_info.has_next_page;
     }
     println!("Done importing merge requests data for group={}.", &group_full_path);
+}
+
+pub async fn import_closed_issues_on_merge(
+    gitlab_rest_endpoint: &str,
+    authorization_header: &str,
+    store: &Store,
+    project_id: &str,
+    merge_request_id: &str,
+    merge_request_iid: &str,
+) {    
+    let closed_issues = fetch_closed_issues_on_merge(
+        gitlab_rest_endpoint,
+        authorization_header,
+        project_id,
+        merge_request_id,
+        merge_request_iid,
+    ).await;
+
+    for issue in closed_issues {
+        persist_closed_issues_on_merge(store, &issue).await;
+    }
+        
+    println!("Done importing closed issues on merge for merge request={} for project={}.", &merge_request_iid, &project_id);
+}
+
+pub async fn fetch_closed_issues_on_merge(
+    gitlab_rest_client: &str,
+    authorization_header: &str,
+    project_id: &str,
+    merge_request_id: &str,
+    merge_request_iid: &str,
+) -> Vec<ClosedIssueOnMerge> {
+    let group_data = gitlab_rest_client::GitlabRestClient::new(authorization_header)
+        .await
+        .fetch_closed_issues_on_merge(gitlab_rest_client, project_id, merge_request_id, merge_request_iid)
+        .await;
+    group_data.expect("Expect closed_issues_on_merge to be Some.")
 }

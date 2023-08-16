@@ -16,3 +16,10 @@ docker run --name local-postgres -p 5432:5432 -e POSTGRES_USER=postgres -e POSTG
 # stop & remove 
 docker rm -f local-postgres
 ```
+
+## notes
+The following Gitlab API authentication methods are supported:
+```bash
+curl --header "PRIVATE-TOKEN: XXX" "https://gitlab.com/api/v4/projects/{}"
+curl --header "Authorization: Bearer XXX" "https://gitlab.com/api/v4/projects/{}"
+```

@@ -15,6 +15,7 @@ query GroupMergeReqs($group_full_path: ID!, $updated_after: Time!, $after: Strin
     ) {
       nodes {
         id
+        iid
         title
         draft
         webUrl
