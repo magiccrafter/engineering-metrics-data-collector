@@ -1,10 +1,7 @@
 use crate::client::gitlab_graphql_client;
 use crate::store::Store;
 
-use serde::Deserialize;
-use serde::Serialize;
 use serde_json;
-use sqlx::Row;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 

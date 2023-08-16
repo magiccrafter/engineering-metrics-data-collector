@@ -4,7 +4,6 @@ use crate::store::Store;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
-use sqlx::Row;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
@@ -198,64 +197,4 @@ pub async fn import_merge_requests(
         has_more_merge_requests = res.page_info.has_next_page;
     }
     println!("Done importing merge requests data for group={}.", &group_full_path);
-}
-
-/// select all merge requests from postgresql where merge request updated_after column is creater than and print them
-pub async fn print_merge_requests(
-    store: &Store,
-    updated_after: &String,
-) {
-    let mut conn = store.conn_pool.acquire().await.unwrap();
-    let merge_requests: Vec<MergeRequest> = sqlx::query(
-        r#"
-        SELECT mr_id, mr_title, project_id, project_name, project_path, created_at, merged_at, diff_stats_summary
-        FROM merge_requests
-        WHERE updated_at > $1
-        "#)
-    .bind(updated_after)
-    .fetch_all(&mut conn)
-    .await
-    .map(|recs| {
-        recs
-            .into_iter()
-            .map(|row| MergeRequest {
-                mr_id: row.get("mr_id"),
-                mr_title: row.get("mr_title"),
-                mr_web_url: row.get("mr_web_url"),
-                project_id: row.get("project_id"),
-                project_name: row.get("project_name"),
-                project_path: row.get("project_path"),
-                created_at: OffsetDateTime::parse(
-                    &row.get::<String, _>("created_at"),
-                    &Rfc3339,
-                ).unwrap(),
-                updated_at: OffsetDateTime::parse(
-                    &row.get::<String, _>("updated_at"),
-                    &Rfc3339,
-                ).unwrap(),
-                merged_at: Some(OffsetDateTime::parse(
-                    &row.get::<String, _>("merged_at"),
-                    &Rfc3339,
-                ).unwrap()),
-                created_by: row.get("created_by"),
-                merged_by: row.get("merged_by"),
-                approved: row.get("approved"),
-                approved_by: match row.try_get("approved_by") {
-                    Ok(value) => Some(serde_json::from_value(value).unwrap()),
-                    Err(_) => None,
-                },
-                diff_stats_summary: match row.try_get("diff_stats_summary") {
-                    Ok(value) => Some(serde_json::from_value(value).unwrap()),
-                    Err(_) => Default::default(),
-                },
-                labels: match row.try_get("labels") {
-                    Ok(value) => Some(serde_json::from_value(value).unwrap()),
-                    Err(_) => Default::default(),
-                }
-            })
-            .collect()
-    })
-    .unwrap();
-
-    println!("merge_requests: {:?}", merge_requests);
 }
