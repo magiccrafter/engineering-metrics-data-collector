@@ -18,9 +18,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL environment variable is not set.").to_string();
     let gitlab_rest_endpoint = env::var("GITLAB_REST_ENDPOINT").expect("GITLAB_REST_ENDPOINT environment variable is not set.").to_string();
     let gitlab_graphql_endpoint = env::var("GITLAB_GRAPHQL_ENDPOINT").expect("GITLAB_GRAPHQL_ENDPOINT environment variable is not set.").to_string();
-    let authorization_header = env::var("EM_TOKEN").expect("EM_TOKEN environment variable is not set.").to_string();
+    let authorization_header = env::var("GITLAB_API_TOKEN").expect("GITLAB_API_TOKEN environment variable is not set.").to_string();
     let updated_after = env::var("UPDATED_AFTER").expect("UPDATED_AFTER environment variable is not set.").to_string();
-    let group_full_paths = env::var("GROUP_FULL_PATH_LIST").expect("GROUP_FULL_PATHS environment variable is not set.").to_string();
+    let group_full_paths = env::var("GITLAB_FULL_PATH_GROUP_LIST").expect("GITLAB_FULL_PATH_GROUP_LIST environment variable is not set.").to_string();
 
     let store = Store::new(&database_url).await;
     store.migrate().await.unwrap();
