@@ -23,3 +23,15 @@ The following Gitlab API authentication methods are supported:
 curl --header "PRIVATE-TOKEN: XXX" "https://gitlab.com/api/v4/projects/{}"
 curl --header "Authorization: Bearer XXX" "https://gitlab.com/api/v4/projects/{}"
 ```
+
+The Atlassian's API authentication method is Basic Authentication:
+```bash
+# generate base64 string from user:api_token used for Basic Authentication header
+echo -n user@example.com:api_token_string | base64
+
+curl curl -D- \
+   -X GET \
+   -H "Authorization: Basic some_base64_string" \
+   -H "Content-Type: application/json" \
+   "https://your-domain.atlassian.net/rest/api/2/issue/ISSUE-Z"
+```

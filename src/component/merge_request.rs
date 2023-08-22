@@ -182,8 +182,8 @@ pub async fn persist_closed_issues_on_merge(
     let mut conn = store.conn_pool.acquire().await.unwrap();
     sqlx::query(
         r#"
-        INSERT INTO engineering_metrics.closed_issues_on_merge (issue_id, issue_iid, mr_id, mr_iid, project_id)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO engineering_metrics.closed_issues_on_merge (issue_id, issue_iid, mr_id, mr_iid, project_id, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
         ON CONFLICT (issue_id, mr_id) DO
         UPDATE SET
             issue_iid = $2,
