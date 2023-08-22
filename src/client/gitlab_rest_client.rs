@@ -34,7 +34,7 @@ impl GitlabRestClient {
             gitlab_rest_endpoint, project_id, merge_request_iid
         );
         let res = &self.client.get(&url).send().await?.text().await?;
-        let issues: Vec<GitlabIssue> = serde_json::from_str(&res)?;
+        let issues: Vec<GitlabIssue> = serde_json::from_str(res)?;
         let result = issues
             .iter()
             .map(|issue| ClosedIssueOnMerge {
@@ -60,7 +60,7 @@ impl GitlabRestClient {
             gitlab_rest_endpoint, project_id, merge_request_iid
         );
         let res = &self.client.get(&url).send().await?.text().await?;
-        let issues: Vec<ExternalIssue> = serde_json::from_str(&res)?;
+        let issues: Vec<ExternalIssue> = serde_json::from_str(res)?;
         let result = issues
             .iter()
             .map(|issue| ClosedIssueOnMerge {

@@ -272,11 +272,10 @@ pub async fn fetch_closed_issues_on_merge(
     match group_data {
         Ok(data) => data,
         Err(_) => {
-            let external_data = rest_client
+            rest_client
                 .fetch_closed_external_issues(gitlab_rest_client, project_id, merge_request_id, merge_request_iid)
                 .await
-                .expect(&format!("Expect closed_issues_on_merge to be Some. Error fetching closed issues on merge for mr={} and project_id={}", &merge_request_iid, &project_id));
-            external_data
+                .unwrap_or_else(|_| panic!("Expect closed_issues_on_merge to be Some. Error fetching closed issues on merge for mr={} and project_id={}", &merge_request_iid, &project_id))
         }
     }
 }

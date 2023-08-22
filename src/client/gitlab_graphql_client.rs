@@ -42,9 +42,7 @@ impl GitlabGraphQLClient {
         let response = post_graphql::<GroupMergeReqs, _>(&self.client, gitlab_graphql_endpoint, variables).await.expect("failed to execute graphql query");
 
         let response_data = response.data.expect("missing response data");
-        let group_data = response_data.group.unwrap();
-
-        group_data
+        response_data.group.unwrap()
     }
 
     pub async fn fetch_group_projects(
@@ -64,9 +62,7 @@ impl GitlabGraphQLClient {
         let response = post_graphql::<GroupProjects, _>(&self.client, gitlab_graphql_endpoint, variables).await.expect("failed to execute graphql query");
 
         let response_data = response.data.expect("missing response data");
-        let group_data = response_data.group.unwrap();
-
-        group_data
+        response_data.group.unwrap()
     }
 
     pub async fn fetch_group_issues(
@@ -85,9 +81,7 @@ impl GitlabGraphQLClient {
         let response = post_graphql::<GroupIssues, _>(&self.client, gitlab_graphql_endpoint, variables).await.expect("failed to execute graphql query");
 
         let response_data = response.data.expect("missing response data");
-        let group_data = response_data.group.unwrap();
-
-        group_data
+        response_data.group.unwrap()
     }
 }
 

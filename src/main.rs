@@ -25,11 +25,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = Store::new(&database_url).await;
     store.migrate().await.unwrap();
 
-    let group_full_paths: Vec<&str> = group_full_paths.split(",").collect();
+    let group_full_paths: Vec<&str> = group_full_paths.split(',').collect();
     for group_full_path in group_full_paths {
-        project::import_projects(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &store).await;
-        merge_request::import_merge_requests(&gitlab_rest_endpoint, &gitlab_graphql_endpoint, &authorization_header, &group_full_path, &updated_after, &store).await; 
-        issue::import_issues(&gitlab_graphql_endpoint, &authorization_header, &group_full_path, &updated_after, &store).await;
+        project::import_projects(&gitlab_graphql_endpoint, &authorization_header, group_full_path, &store).await;
+        merge_request::import_merge_requests(&gitlab_rest_endpoint, &gitlab_graphql_endpoint, &authorization_header, group_full_path, &updated_after, &store).await; 
+        issue::import_issues(&gitlab_graphql_endpoint, &authorization_header, group_full_path, &updated_after, &store).await;
     }
 
     Ok(())

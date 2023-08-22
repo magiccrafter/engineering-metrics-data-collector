@@ -44,7 +44,7 @@ pub async fn fetch_group_projects(
             path: project_ref.path.clone(),
             full_path: project_ref.full_path.clone(),
             web_url: project_ref.web_url.clone(),
-            topics: project_ref.topics.as_ref().map(|topics| topics.clone()),
+            topics: project_ref.topics.as_ref().cloned(),
        });
     }
 
