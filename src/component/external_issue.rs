@@ -147,9 +147,3 @@ async fn select_newly_closed_external_issues_on_merge_and_try_importing_them_as_
         page_number += 1;
     }
 }
-
-
-
-grcov . -s . --binary-path ./target/debug/        -t html --branch --ignore-not-existing -o ./target/debug/coverage/
-
-grcov . -s . --binary-path ./target/debug/deps/   -t html --branch --ignore-not-existing -o target/coverage/html --ignore '../*' --ignore "/*" 
