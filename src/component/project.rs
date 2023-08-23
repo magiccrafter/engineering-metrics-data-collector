@@ -36,7 +36,11 @@ pub async fn fetch_group_projects(
     // println!("group_data: {:?}", &group_data);
 
     let mut projects: Vec<Project> = Vec::new();
-    for project in group_data.projects.nodes.expect("GroupProjectsNodes is None") {
+    for project in group_data
+        .projects
+        .nodes
+        .expect("GroupProjectsNodes is None")
+    {
         let project_ref = project.as_ref().expect("project is None");
         projects.push(Project {
             id: project_ref.id.clone(),
@@ -45,7 +49,7 @@ pub async fn fetch_group_projects(
             full_path: project_ref.full_path.clone(),
             web_url: project_ref.web_url.clone(),
             topics: project_ref.topics.as_ref().cloned(),
-       });
+        });
     }
 
     ProjectsWithPageInfo {
@@ -57,10 +61,7 @@ pub async fn fetch_group_projects(
     }
 }
 
-pub async fn persist_project(
-    store: &Store,
-    project: &Project,
-) {
+pub async fn persist_project(store: &Store, project: &Project) {
     let mut conn = store.conn_pool.acquire().await.unwrap();
 
     sqlx::query(
@@ -101,7 +102,8 @@ pub async fn import_projects(
             authorization_header,
             group_full_path,
             after_pointer_token.clone(),
-        ).await;
+        )
+        .await;
 
         for project in res.projects {
             persist_project(store, &project).await;
@@ -110,5 +112,8 @@ pub async fn import_projects(
         after_pointer_token = res.page_info.end_cursor;
         has_more = res.page_info.has_next_page;
     }
-    println!("Done importing projects data for group={}.", &group_full_path);
+    println!(
+        "Done importing projects data for group={}.",
+        &group_full_path
+    );
 }

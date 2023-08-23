@@ -22,15 +22,20 @@ impl AtlassianRestClient {
         AtlassianRestClient { client }
     }
 
-    pub async fn fetch_jira_issue(&self, issue_key: &str, jira_rest_endpoint: &str) -> Result<JiraIssue, reqwest::Error> {
+    pub async fn fetch_jira_issue(
+        &self,
+        issue_key: &str,
+        jira_rest_endpoint: &str,
+    ) -> Result<JiraIssue, reqwest::Error> {
         let url = format!("{}/issue/{}", jira_rest_endpoint, issue_key);
-        let response = &self.client
+        let response = &self
+            .client
             .get(&url)
             .send()
             .await?
             .json::<JiraIssue>()
             .await?;
-    
+
         Ok(response.clone())
     }
 }

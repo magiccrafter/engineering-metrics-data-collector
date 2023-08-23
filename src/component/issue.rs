@@ -45,7 +45,12 @@ pub async fn fetch_group_issues(
 ) -> IssuesWithPageInfo {
     let group_data = gitlab_graphql_client::GitlabGraphQLClient::new(authorization_header)
         .await
-        .fetch_group_issues(gitlab_graphql_client, group_full_path, updated_after, after_pointer_token)
+        .fetch_group_issues(
+            gitlab_graphql_client,
+            group_full_path,
+            updated_after,
+            after_pointer_token,
+        )
         .await;
 
     let mut issues: Vec<Issue> = Vec::new();
@@ -57,33 +62,26 @@ pub async fn fetch_group_issues(
             issue_title: mr_ref.title.clone(),
             issue_web_url: mr_ref.web_url.clone(),
             project_id: mr_ref.project_id.clone().to_string(),
-            created_at: OffsetDateTime::parse(
-                &mr_ref.created_at.clone(),
-                &Rfc3339,
-            ).unwrap(),
-            closed_at: mr_ref.closed_at.as_ref()
-                .map(|closed_at| OffsetDateTime::parse(
-                    &closed_at.clone(),
-                    &Rfc3339,
-                ).unwrap()
-            ),
-            updated_at: OffsetDateTime::parse(
-                &mr_ref.updated_at.clone(),
-                &Rfc3339,
-            ).unwrap(),
+            created_at: OffsetDateTime::parse(&mr_ref.created_at.clone(), &Rfc3339).unwrap(),
+            closed_at: mr_ref
+                .closed_at
+                .as_ref()
+                .map(|closed_at| OffsetDateTime::parse(&closed_at.clone(), &Rfc3339).unwrap()),
+            updated_at: OffsetDateTime::parse(&mr_ref.updated_at.clone(), &Rfc3339).unwrap(),
             created_by: mr_ref.author.username.clone(),
-            updated_by: mr_ref.updated_by.as_ref()
-                .map(|m_by| m_by.username.clone()
-            ),
-            labels: mr_ref.labels.as_ref()
-                .map(|labels| labels.nodes.as_ref().unwrap()
+            updated_by: mr_ref.updated_by.as_ref().map(|m_by| m_by.username.clone()),
+            labels: mr_ref.labels.as_ref().map(|labels| {
+                labels
+                    .nodes
+                    .as_ref()
+                    .unwrap()
                     .iter()
                     .map(|label| label.as_ref().expect("label is None").title.clone())
                     .collect()
-                ),
+            }),
         });
     }
-    
+
     IssuesWithPageInfo {
         issues,
         page_info: PageInfo {
@@ -93,10 +91,7 @@ pub async fn fetch_group_issues(
     }
 }
 
-pub async fn persist_issue(
-    store: &Store,
-    issue: &Issue,
-) {
+pub async fn persist_issue(store: &Store, issue: &Issue) {
     let mut conn = store.conn_pool.acquire().await.unwrap();
 
     sqlx::query(
@@ -139,7 +134,6 @@ pub async fn import_issues(
     updated_after: &str,
     store: &Store,
 ) {
-
     let mut has_more_merge_issues = true;
     let mut after_pointer_token = Option::None;
 
@@ -150,7 +144,8 @@ pub async fn import_issues(
             group_full_path,
             updated_after,
             after_pointer_token.clone(),
-        ).await;
+        )
+        .await;
 
         for i in res.issues {
             persist_issue(store, &i).await;
@@ -159,5 +154,8 @@ pub async fn import_issues(
         after_pointer_token = res.page_info.end_cursor;
         has_more_merge_issues = res.page_info.has_next_page;
     }
-    println!("Done importing merge requests data for group={}.", &group_full_path);
+    println!(
+        "Done importing merge requests data for group={}.",
+        &group_full_path
+    );
 }

@@ -67,12 +67,21 @@ pub async fn fetch_group_merge_requests(
 ) -> MergeRequestsWithPageInfo {
     let group_data = gitlab_graphql_client::GitlabGraphQLClient::new(authorization_header)
         .await
-        .fetch_group_merge_requests(gitlab_graphql_client, group_full_path, updated_after, after_pointer_token)
+        .fetch_group_merge_requests(
+            gitlab_graphql_client,
+            group_full_path,
+            updated_after,
+            after_pointer_token,
+        )
         .await;
     // println!("group_data: {:?}", &group_data);
 
     let mut merge_requests: Vec<MergeRequest> = Vec::new();
-    for mr in group_data.merge_requests.nodes.expect("GroupMergeReqsGroupMergeRequestsNodes is None") {
+    for mr in group_data
+        .merge_requests
+        .nodes
+        .expect("GroupMergeReqsGroupMergeRequestsNodes is None")
+    {
         let mr_ref = mr.as_ref().expect("mr is None");
         merge_requests.push(MergeRequest {
             mr_id: mr_ref.id.clone(),
@@ -82,45 +91,50 @@ pub async fn fetch_group_merge_requests(
             project_id: mr_ref.project_id.clone().to_string(),
             project_name: mr_ref.project.name.clone(),
             project_path: mr_ref.project.path.clone(),
-            created_at: OffsetDateTime::parse(
-                &mr_ref.created_at.clone(),
-                &Rfc3339,
-            ).unwrap(),
-            updated_at: OffsetDateTime::parse(
-                &mr_ref.updated_at.clone(),
-                &Rfc3339,
-            ).unwrap(),
-            merged_at: mr_ref.merged_at.clone()
-                .map(|m_at| OffsetDateTime::parse(&m_at,&Rfc3339).unwrap()
-            ),
+            created_at: OffsetDateTime::parse(&mr_ref.created_at.clone(), &Rfc3339).unwrap(),
+            updated_at: OffsetDateTime::parse(&mr_ref.updated_at.clone(), &Rfc3339).unwrap(),
+            merged_at: mr_ref
+                .merged_at
+                .clone()
+                .map(|m_at| OffsetDateTime::parse(&m_at, &Rfc3339).unwrap()),
             created_by: mr_ref.author.username.clone(),
-            merged_by: mr_ref.merge_user.as_ref()
-                .map(|m_by| m_by.username.clone()
-            ),
-            approved_by: mr_ref.approved_by.as_ref()
-                .map(|a_by| a_by.nodes.as_ref().unwrap()
+            merged_by: mr_ref.merge_user.as_ref().map(|m_by| m_by.username.clone()),
+            approved_by: mr_ref.approved_by.as_ref().map(|a_by| {
+                a_by.nodes
+                    .as_ref()
+                    .unwrap()
                     .iter()
-                    .map(|a_by_node| a_by_node.as_ref().expect("a_by_node is None").username.clone())
+                    .map(|a_by_node| {
+                        a_by_node
+                            .as_ref()
+                            .expect("a_by_node is None")
+                            .username
+                            .clone()
+                    })
                     .collect()
-                ),
+            }),
             approved: mr_ref.approved,
-            diff_stats_summary: mr_ref.diff_stats_summary.as_ref()
-            .map(|diff_stats_summary| DiffStatsSummary {
+            diff_stats_summary: mr_ref
+                .diff_stats_summary
+                .as_ref()
+                .map(|diff_stats_summary| DiffStatsSummary {
                     additions: diff_stats_summary.additions as i32,
                     deletions: diff_stats_summary.deletions as i32,
                     changes: diff_stats_summary.changes as i32,
                     file_count: diff_stats_summary.file_count as i32,
-                }
-            ),
-            labels: mr_ref.labels.as_ref()
-                .map(|labels| labels.nodes.as_ref().unwrap()
+                }),
+            labels: mr_ref.labels.as_ref().map(|labels| {
+                labels
+                    .nodes
+                    .as_ref()
+                    .unwrap()
                     .iter()
                     .map(|label| label.as_ref().expect("label is None").title.clone())
                     .collect()
-                ),
+            }),
         });
     }
-    
+
     MergeRequestsWithPageInfo {
         merge_requests,
         page_info: PageInfo {
@@ -130,10 +144,7 @@ pub async fn fetch_group_merge_requests(
     }
 }
 
-pub async fn persist_merge_request(
-    store: &Store,
-    merge_request: &MergeRequest,
-) {
+pub async fn persist_merge_request(store: &Store, merge_request: &MergeRequest) {
     let mut conn = store.conn_pool.acquire().await.unwrap();
 
     sqlx::query(
@@ -175,10 +186,7 @@ pub async fn persist_merge_request(
     .unwrap();
 }
 
-pub async fn persist_closed_issues_on_merge(
-    store: &Store,
-    issue: &ClosedIssueOnMerge,
-) {
+pub async fn persist_closed_issues_on_merge(store: &Store, issue: &ClosedIssueOnMerge) {
     let mut conn = store.conn_pool.acquire().await.unwrap();
     sqlx::query(
         r#"
@@ -219,19 +227,29 @@ pub async fn import_merge_requests(
             group_full_path,
             updated_after,
             after_pointer_token.clone(),
-        ).await;
+        )
+        .await;
 
         for merge_request in res.merge_requests {
             persist_merge_request(store, &merge_request).await;
-            import_closed_issues_on_merge(gitlab_rest_endpoint, authorization_header, 
-                store, &merge_request.project_id, 
-                &merge_request.mr_id, &merge_request.mr_iid).await;
+            import_closed_issues_on_merge(
+                gitlab_rest_endpoint,
+                authorization_header,
+                store,
+                &merge_request.project_id,
+                &merge_request.mr_id,
+                &merge_request.mr_iid,
+            )
+            .await;
         }
 
         after_pointer_token = res.page_info.end_cursor;
         has_more_merge_requests = res.page_info.has_next_page;
     }
-    println!("Done importing merge requests data for group={}.", &group_full_path);
+    println!(
+        "Done importing merge requests data for group={}.",
+        &group_full_path
+    );
 }
 
 pub async fn import_closed_issues_on_merge(
@@ -241,20 +259,24 @@ pub async fn import_closed_issues_on_merge(
     project_id: &str,
     merge_request_id: &str,
     merge_request_iid: &str,
-) {    
+) {
     let closed_issues = fetch_closed_issues_on_merge(
         gitlab_rest_endpoint,
         authorization_header,
         project_id,
         merge_request_id,
         merge_request_iid,
-    ).await;
+    )
+    .await;
 
     for issue in closed_issues {
         persist_closed_issues_on_merge(store, &issue).await;
     }
-        
-    println!("Done importing closed issues on merge for merge request={} for project={}.", &merge_request_iid, &project_id);
+
+    println!(
+        "Done importing closed issues on merge for merge request={} for project={}.",
+        &merge_request_iid, &project_id
+    );
 }
 
 pub async fn fetch_closed_issues_on_merge(
@@ -266,7 +288,12 @@ pub async fn fetch_closed_issues_on_merge(
 ) -> Vec<ClosedIssueOnMerge> {
     let rest_client = gitlab_rest_client::GitlabRestClient::new(authorization_header).await;
     let group_data = rest_client
-        .fetch_closed_issues_on_merge(gitlab_rest_client, project_id, merge_request_id, merge_request_iid)
+        .fetch_closed_issues_on_merge(
+            gitlab_rest_client,
+            project_id,
+            merge_request_id,
+            merge_request_iid,
+        )
         .await;
 
     match group_data {

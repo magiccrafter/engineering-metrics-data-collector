@@ -40,7 +40,8 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
         .mount(&rest_mock_server)
         .await;
 
-    let rest_mock_server_response2 = get_rest_closed_issues_on_merge_for_mr_888_response_mock().await;
+    let rest_mock_server_response2 =
+        get_rest_closed_issues_on_merge_for_mr_888_response_mock().await;
     Mock::given(method("GET"))
         .and(path("/projects/52263413/merge_requests/888/closes_issues"))
         .respond_with(ResponseTemplate::new(200).set_body_string(rest_mock_server_response2))

@@ -21,7 +21,14 @@ pub async fn import_external_issues(
     store: &Store,
 ) {
     select_newly_closed_external_issues_on_merge_and_try_importing_them_as_external_issues(
-        atlassian_jira_issue_url_prefix, atlassian_rest_endpoint, authorization_header, store, 20, updated_after).await;
+        atlassian_jira_issue_url_prefix,
+        atlassian_rest_endpoint,
+        authorization_header,
+        store,
+        20,
+        updated_after,
+    )
+    .await;
 }
 
 pub async fn try_importing_jira_issues(
@@ -33,23 +40,27 @@ pub async fn try_importing_jira_issues(
 ) {
     for i in closed_external_issues_on_merge {
         try_fetching_jira_issue(atlassian_rest_endpoint, authorization_header, &i.issue_id)
-        .await
-        .as_ref()
-        .map(|external_issue| {
-            let issue_id = i.issue_id.clone();
-            async move {
-                persist_external_issue(store, &ExternalIssue {
-                    issue_tracker: "jira".to_string(),
-                    issue_id: external_issue.id.clone(),
-                    issue_display_id: issue_id.clone(),
-                    title: external_issue.fields.summary.clone(),
-                    web_url: format!("{}{}", atlassian_jira_issue_url_prefix, issue_id),
-                }).await;    
-                external_issue.clone()
-            }
-        })
-        .unwrap_or_else(|| panic!("Error fetching Jira issue with id={}", &i.issue_id))
-        .await;
+            .await
+            .as_ref()
+            .map(|external_issue| {
+                let issue_id = i.issue_id.clone();
+                async move {
+                    persist_external_issue(
+                        store,
+                        &ExternalIssue {
+                            issue_tracker: "jira".to_string(),
+                            issue_id: external_issue.id.clone(),
+                            issue_display_id: issue_id.clone(),
+                            title: external_issue.fields.summary.clone(),
+                            web_url: format!("{}{}", atlassian_jira_issue_url_prefix, issue_id),
+                        },
+                    )
+                    .await;
+                    external_issue.clone()
+                }
+            })
+            .unwrap_or_else(|| panic!("Error fetching Jira issue with id={}", &i.issue_id))
+            .await;
     }
 }
 
@@ -59,7 +70,9 @@ pub async fn try_fetching_jira_issue(
     issue_id: &str,
 ) -> Option<JiraIssue> {
     let rest_client = atlassian_rest_client::AtlassianRestClient::new(authorization_header).await;
-    let result = rest_client.fetch_jira_issue(issue_id, atlassian_rest_endpoint).await;
+    let result = rest_client
+        .fetch_jira_issue(issue_id, atlassian_rest_endpoint)
+        .await;
 
     match result {
         Ok(data) => Some(data),
@@ -70,10 +83,7 @@ pub async fn try_fetching_jira_issue(
     }
 }
 
-pub async fn persist_external_issue(
-    store: &Store,
-    issue: &ExternalIssue,
-) {
+pub async fn persist_external_issue(store: &Store, issue: &ExternalIssue) {
     let mut conn = store.conn_pool.acquire().await.unwrap();
     sqlx::query(
         r#"
@@ -108,9 +118,9 @@ async fn select_newly_closed_external_issues_on_merge_and_try_importing_them_as_
     atlassian_jira_issue_url_prefix: &str,
     atlassian_rest_endpoint: &str,
     authorization_header: &str,
-    store: &Store, 
-    page_size: i32, 
-    updated_after: &str
+    store: &Store,
+    page_size: i32,
+    updated_after: &str,
 ) {
     let mut page_number = 1;
 
@@ -136,13 +146,22 @@ async fn select_newly_closed_external_issues_on_merge_and_try_importing_them_as_
             break;
         }
 
-        let closed_issues: Vec<ClosedExternalIssueOnMerge> = rows.iter().map(|row| ClosedExternalIssueOnMerge {
-            issue_id: row.get(0),
-            created_at: row.get(1),
-        }).collect();
-    
-        try_importing_jira_issues(atlassian_jira_issue_url_prefix, atlassian_rest_endpoint, 
-            authorization_header, &closed_issues, store).await;
+        let closed_issues: Vec<ClosedExternalIssueOnMerge> = rows
+            .iter()
+            .map(|row| ClosedExternalIssueOnMerge {
+                issue_id: row.get(0),
+                created_at: row.get(1),
+            })
+            .collect();
+
+        try_importing_jira_issues(
+            atlassian_jira_issue_url_prefix,
+            atlassian_rest_endpoint,
+            authorization_header,
+            &closed_issues,
+            store,
+        )
+        .await;
 
         page_number += 1;
     }

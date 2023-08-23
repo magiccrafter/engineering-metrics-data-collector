@@ -6,7 +6,6 @@ pub struct GitlabGraphQLClient {
 }
 
 impl GitlabGraphQLClient {
-    
     pub async fn new(authorization_header: &str) -> Self {
         let client = reqwest::Client::builder()
             .user_agent("engineering-metrics-data-collector")
@@ -35,11 +34,14 @@ impl GitlabGraphQLClient {
             updated_after: updated_after.to_string(),
             after: after_pointer_token,
         };
-        
+
         // let qraphql_query = include_str!("gitlab_group_mrs_query.graphql");
         // println!("{qraphql_query}");
 
-        let response = post_graphql::<GroupMergeReqs, _>(&self.client, gitlab_graphql_endpoint, variables).await.expect("failed to execute graphql query");
+        let response =
+            post_graphql::<GroupMergeReqs, _>(&self.client, gitlab_graphql_endpoint, variables)
+                .await
+                .expect("failed to execute graphql query");
 
         let response_data = response.data.expect("missing response data");
         response_data.group.unwrap()
@@ -58,8 +60,11 @@ impl GitlabGraphQLClient {
 
         // let qraphql_query = include_str!("gitlab_group_projects_query.graphql");
         // println!("{qraphql_query}");
-        
-        let response = post_graphql::<GroupProjects, _>(&self.client, gitlab_graphql_endpoint, variables).await.expect("failed to execute graphql query");
+
+        let response =
+            post_graphql::<GroupProjects, _>(&self.client, gitlab_graphql_endpoint, variables)
+                .await
+                .expect("failed to execute graphql query");
 
         let response_data = response.data.expect("missing response data");
         response_data.group.unwrap()
@@ -77,8 +82,11 @@ impl GitlabGraphQLClient {
             updated_after: updated_after.to_string(),
             after: after_pointer_token,
         };
-        
-        let response = post_graphql::<GroupIssues, _>(&self.client, gitlab_graphql_endpoint, variables).await.expect("failed to execute graphql query");
+
+        let response =
+            post_graphql::<GroupIssues, _>(&self.client, gitlab_graphql_endpoint, variables)
+                .await
+                .expect("failed to execute graphql query");
 
         let response_data = response.data.expect("missing response data");
         response_data.group.unwrap()

@@ -1,11 +1,11 @@
-use engineering_metrics_data_collector::store::Store;
 use engineering_metrics_data_collector::component::project::{self};
+use engineering_metrics_data_collector::store::Store;
 use testcontainers::clients;
 mod postgres_container;
 
-use sqlx::Row;
 use serde_json::json;
-use wiremock::matchers::{method};
+use sqlx::Row;
+use wiremock::matchers::method;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -22,13 +22,13 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
     .await;
 
     store.migrate().await.unwrap();
-    
+
     let mock_server = MockServer::start().await;
     let expected_body = get_graphql_query_response_mock().await;
     Mock::given(method("POST"))
         .respond_with(ResponseTemplate::new(200).set_body_string(expected_body))
         .mount(&mock_server)
-    .await;
+        .await;
     const DUMMY: &String = &String::new();
     project::import_projects(&mock_server.uri(), DUMMY, DUMMY, &store).await;
 
@@ -45,12 +45,24 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
         .await
         .unwrap();
 
-    assert_eq!(result.get::<String, _>("p_id"), "gid://gitlab/Project/444444");
+    assert_eq!(
+        result.get::<String, _>("p_id"),
+        "gid://gitlab/Project/444444"
+    );
     assert_eq!(result.get::<String, _>("p_name"), "Project 1 Name");
     assert_eq!(result.get::<String, _>("p_path"), "project-1");
-    assert_eq!(result.get::<String, _>("p_full_path"), "full/path/to/project-1");
-    assert_eq!(result.get::<String, _>("p_web_url"), "https://gitlab.com/full/path/to/project-1");
-    assert_eq!(result.get::<serde_json::Value, _>("topics"), json!(["foo", "bar"]));
+    assert_eq!(
+        result.get::<String, _>("p_full_path"),
+        "full/path/to/project-1"
+    );
+    assert_eq!(
+        result.get::<String, _>("p_web_url"),
+        "https://gitlab.com/full/path/to/project-1"
+    );
+    assert_eq!(
+        result.get::<serde_json::Value, _>("topics"),
+        json!(["foo", "bar"])
+    );
 
     // fetch concrete project that has p_path equal to "cool_project_2"
     let result = sqlx::query("SELECT p_id, p_name, p_path, p_full_path, p_web_url, topics from engineering_metrics.projects WHERE p_path = 'project-2'")
@@ -58,11 +70,20 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
         .await
         .unwrap();
 
-    assert_eq!(result.get::<String, _>("p_id"), "gid://gitlab/Project/333333");
+    assert_eq!(
+        result.get::<String, _>("p_id"),
+        "gid://gitlab/Project/333333"
+    );
     assert_eq!(result.get::<String, _>("p_name"), "project 2 name");
     assert_eq!(result.get::<String, _>("p_path"), "project-2");
-    assert_eq!(result.get::<String, _>("p_full_path"), "full/path/to/project-2");
-    assert_eq!(result.get::<String, _>("p_web_url"), "https://gitlab.com/full/path/to/project-2");
+    assert_eq!(
+        result.get::<String, _>("p_full_path"),
+        "full/path/to/project-2"
+    );
+    assert_eq!(
+        result.get::<String, _>("p_web_url"),
+        "https://gitlab.com/full/path/to/project-2"
+    );
     assert_eq!(result.get::<serde_json::Value, _>("topics"), json!([]));
 }
 
