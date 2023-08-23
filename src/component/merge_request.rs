@@ -269,14 +269,18 @@ pub async fn import_closed_issues_on_merge(
     )
     .await;
 
-    for issue in closed_issues {
-        persist_closed_issues_on_merge(store, &issue).await;
+    for issue in &closed_issues {
+        persist_closed_issues_on_merge(store, issue).await;
     }
 
-    println!(
-        "Done importing closed issues on merge for merge request={} for project={}.",
-        &merge_request_iid, &project_id
-    );
+    if !closed_issues.is_empty() {
+        println!(
+            "Imported {} closed issues on merge for merge request={} for project={}.",
+            closed_issues.len(),
+            &merge_request_iid,
+            &project_id
+        );
+    }
 }
 
 pub async fn fetch_closed_issues_on_merge(
