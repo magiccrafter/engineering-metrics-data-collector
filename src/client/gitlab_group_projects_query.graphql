@@ -8,7 +8,7 @@ query GroupProjects($group_full_path: ID!, $after: String) {
     name
     projects(
       includeSubgroups: true
-      first: 20
+      first: 50
       after: $after
     ) {
       nodes {

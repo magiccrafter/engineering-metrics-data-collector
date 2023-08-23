@@ -59,7 +59,7 @@ pub async fn try_importing_jira_issues(
                     external_issue.clone()
                 }
             })
-            .unwrap_or_else(|| panic!("Error fetching Jira issue with id={}", &i.issue_id))
+            .unwrap()
             .await;
     }
 }

@@ -8,7 +8,7 @@ query GroupIssues($group_full_path: ID!, $updated_after: Time!, $after: String) 
     name
     issues(
       includeSubgroups: true
-      first: 20
+      first: 50
       after: $after
       updatedAfter: $updated_after
       sort: CREATED_DESC
