@@ -1,5 +1,7 @@
 # engineering-metrics-data-collector
 
+[![codecov](https://codecov.io/gh/magiccrafter/engineering-metrics-data-collector/graph/badge.svg?token=OMJGUHD1B2)](https://codecov.io/gh/magiccrafter/engineering-metrics-data-collector)
+
 # testing
 
 `cargo test`
