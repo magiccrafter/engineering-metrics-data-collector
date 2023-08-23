@@ -1,5 +1,6 @@
 # engineering-metrics-data-collector
 
+[![Build Status](https://github.com/magiccrafter/engineering-metrics-data-collector/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/magiccrafter/engineering-metrics-data-collector/actions/workflows/rust.yml)
 [![codecov](https://codecov.io/gh/magiccrafter/engineering-metrics-data-collector/graph/badge.svg?token=OMJGUHD1B2)](https://codecov.io/gh/magiccrafter/engineering-metrics-data-collector)
 
 # testing
