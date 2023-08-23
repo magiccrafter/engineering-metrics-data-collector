@@ -58,10 +58,11 @@ create table engineering_metrics.closed_issues_on_merge (
 );
 
 create table engineering_metrics.external_issues (
-    platform varchar not null,
+    issue_tracker varchar not null,
     issue_id varchar not null,
-    issue_iid varchar null,
+    issue_display_id varchar null,
     title varchar not null,
     web_url varchar not null,
-    primary key (platform, issue_id)
+    imported_at timestamptz not null,
+    primary key (issue_tracker, issue_id)
 );

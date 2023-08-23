@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Debug, Clone)]
 pub struct AtlassianRestClient {
@@ -22,8 +22,8 @@ impl AtlassianRestClient {
         AtlassianRestClient { client }
     }
 
-    async fn fetch_jira_issue(&self, issue_key: &str, jira_base_url: &str) -> Result<JiraIssue, reqwest::Error> {
-        let url = format!("{}/rest/api/2/issue/{}", jira_base_url, issue_key);
+    pub async fn fetch_jira_issue(&self, issue_key: &str, jira_rest_endpoint: &str) -> Result<JiraIssue, reqwest::Error> {
+        let url = format!("{}/issue/{}", jira_rest_endpoint, issue_key);
         let response = &self.client
             .get(&url)
             .send()
