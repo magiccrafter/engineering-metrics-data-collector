@@ -39,28 +39,25 @@ pub async fn try_importing_jira_issues(
     store: &Store,
 ) {
     for i in closed_external_issues_on_merge {
-        try_fetching_jira_issue(atlassian_rest_endpoint, authorization_header, &i.issue_id)
-            .await
-            .as_ref()
-            .map(|external_issue| {
-                let issue_id = i.issue_id.clone();
-                async move {
-                    persist_external_issue(
-                        store,
-                        &ExternalIssue {
-                            issue_tracker: "jira".to_string(),
-                            issue_id: external_issue.id.clone(),
-                            issue_display_id: issue_id.clone(),
-                            title: external_issue.fields.summary.clone(),
-                            web_url: format!("{}{}", atlassian_jira_issue_url_prefix, issue_id),
-                        },
-                    )
-                    .await;
-                    external_issue.clone()
-                }
-            })
-            .unwrap()
-            .await;
+        let jira_issue =
+            try_fetching_jira_issue(atlassian_rest_endpoint, authorization_header, &i.issue_id)
+                .await;
+
+        if let Some(issue) = jira_issue.as_ref() {
+            let external_issue = ExternalIssue {
+                issue_tracker: "jira".to_string(),
+                issue_id: issue.id.clone(),
+                issue_display_id: i.issue_id.clone(),
+                title: issue.fields.summary.clone(),
+                web_url: format!("{}{}", atlassian_jira_issue_url_prefix, i.issue_id),
+            };
+            persist_external_issue(store, &external_issue).await;
+        } else {
+            println!(
+                "Jira issue with id={} not found or not accessible.",
+                i.issue_id
+            );
+        }
     }
 }
 
