@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use futures::future::join_all;
+
 use crate::client::gitlab_graphql_client;
 use crate::store::Store;
 
@@ -61,9 +65,8 @@ pub async fn fetch_group_projects(
     }
 }
 
-pub async fn persist_project(store: &Store, project: &Project) {
+pub async fn persist_project<'a>(store: &'a Store, project: &'a Project) {
     let mut conn = store.conn_pool.acquire().await.unwrap();
-
     sqlx::query(
         r#"
         INSERT INTO engineering_metrics.projects (p_id, p_name, p_path, p_full_path, p_web_url, topics)
@@ -91,7 +94,7 @@ pub async fn import_projects(
     gitlab_graphql_client: &str,
     authorization_header: &str,
     group_full_path: &str,
-    store: &Store,
+    store: &Arc<Store>,
 ) {
     let mut has_more = true;
     let mut after_pointer_token = Option::None;
@@ -105,9 +108,13 @@ pub async fn import_projects(
         )
         .await;
 
+        let mut future_handles = Vec::new();
         for project in res.projects {
-            persist_project(store, &project).await;
+            let store_copy = Arc::clone(store);
+            let handle = tokio::spawn(async move { persist_project(&store_copy, &project).await });
+            future_handles.push(handle);
         }
+        join_all(future_handles).await;
 
         after_pointer_token = res.page_info.end_cursor;
         has_more = res.page_info.has_next_page;

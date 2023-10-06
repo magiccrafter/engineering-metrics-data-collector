@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use engineering_metrics_data_collector::component::merge_request::{self, DiffStatsSummary};
 use engineering_metrics_data_collector::store::Store;
 use testcontainers::clients;
@@ -17,11 +19,13 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     let node = docker.run(image);
     let port = node.get_host_port_ipv4(5432);
 
-    let store = Store::new(&format!(
-        "postgres://postgres:postgres@localhost:{}/postgres",
-        port
-    ))
-    .await;
+    let store = Arc::new(
+        Store::new(&format!(
+            "postgres://postgres:postgres@localhost:{}/postgres",
+            port
+        ))
+        .await,
+    );
 
     store.migrate().await.unwrap();
 

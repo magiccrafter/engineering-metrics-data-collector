@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::client::gitlab_graphql_client;
 use crate::client::gitlab_rest_client;
 use crate::client::gitlab_rest_client::ClosedIssueOnMerge;
@@ -215,7 +217,7 @@ pub async fn import_merge_requests(
     authorization_header: &str,
     group_full_path: &str,
     updated_after: &str,
-    store: &Store,
+    store: &Arc<Store>,
 ) {
     let mut has_more_merge_requests = true;
     let mut after_pointer_token = Option::None;

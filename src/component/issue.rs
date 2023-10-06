@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::client::gitlab_graphql_client;
 use crate::store::Store;
 
@@ -132,7 +134,7 @@ pub async fn import_issues(
     authorization_header: &str,
     group_full_path: &str,
     updated_after: &str,
-    store: &Store,
+    store: &Arc<Store>,
 ) {
     let mut has_more_merge_issues = true;
     let mut after_pointer_token = Option::None;
@@ -154,8 +156,5 @@ pub async fn import_issues(
         after_pointer_token = res.page_info.end_cursor;
         has_more_merge_issues = res.page_info.has_next_page;
     }
-    println!(
-        "Done importing merge requests data for group={}.",
-        &group_full_path
-    );
+    println!("Done importing issues data for group={}.", &group_full_path);
 }

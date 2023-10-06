@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::client::atlassian_rest_client::{self, JiraIssue};
 use crate::store::Store;
 
@@ -18,7 +20,7 @@ pub async fn import_external_issues(
     atlassian_rest_endpoint: &str,
     authorization_header: &str,
     updated_after: &str,
-    store: &Store,
+    store: &Arc<Store>,
 ) {
     select_newly_closed_external_issues_on_merge_and_try_importing_them_as_external_issues(
         atlassian_jira_issue_url_prefix,

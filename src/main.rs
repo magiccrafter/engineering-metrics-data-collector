@@ -4,6 +4,8 @@ use engineering_metrics_data_collector::component::{
 
 use engineering_metrics_data_collector::store::Store;
 use std::env;
+use std::sync::Arc;
+use std::time::Instant;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,9 +40,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let external_issue_tracker_enabled =
         env::var("EXTERNAL_ISSUE_TRACKER_ENABLED").map_or_else(|_| false, |val| val == "true");
 
-    let store = Store::new(&database_url).await;
+    let store = Arc::new(Store::new(&database_url).await);
     store.migrate().await.unwrap();
 
+    let start_time = Instant::now();
     let group_full_paths: Vec<&str> = group_full_paths.split(',').collect();
     for group_full_path in group_full_paths {
         project::import_projects(
@@ -89,6 +92,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("External issue tracker is disabled.");
         }
     }
+    let elapsed = start_time.elapsed();
+    println!("Time elapsed: {:?}", elapsed);
 
     Ok(())
 }
