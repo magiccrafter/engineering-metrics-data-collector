@@ -8,7 +8,7 @@ pub struct Store {
 impl Store {
     pub async fn new(db_url: &str) -> Self {
         let db_pool = match PgPoolOptions::new()
-            .max_connections(5)
+            .max_connections(10)
             .connect(db_url)
             .await
         {

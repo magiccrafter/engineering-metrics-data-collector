@@ -3,10 +3,11 @@ use serde::Deserialize;
 #[derive(Debug, Clone)]
 pub struct GitlabRestClient {
     client: reqwest::Client,
+    endpoint: String,
 }
 
 impl GitlabRestClient {
-    pub async fn new(authorization_header: &str) -> Self {
+    pub async fn new(authorization_header: &str, endpoint: String) -> Self {
         let client = reqwest::Client::builder()
             .user_agent("engineering-metrics-data-collector")
             .default_headers(
@@ -19,19 +20,18 @@ impl GitlabRestClient {
             .build()
             .unwrap();
 
-        GitlabRestClient { client }
+        GitlabRestClient { client, endpoint }
     }
 
     pub async fn fetch_closed_issues_on_merge(
         &self,
-        gitlab_rest_endpoint: &str,
         project_id: &str,
         merge_request_id: &str,
         merge_request_iid: &str,
-    ) -> Result<Vec<ClosedIssueOnMerge>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<ClosedIssueOnMerge>, Box<dyn Sync + Send + std::error::Error>> {
         let url = format!(
             "{}/projects/{}/merge_requests/{}/closes_issues",
-            gitlab_rest_endpoint, project_id, merge_request_iid
+            self.endpoint, project_id, merge_request_iid
         );
         let res = &self.client.get(&url).send().await?.text().await?;
         let issues: Vec<GitlabIssue> = serde_json::from_str(res)?;
@@ -50,14 +50,13 @@ impl GitlabRestClient {
 
     pub async fn fetch_closed_external_issues(
         &self,
-        gitlab_rest_endpoint: &str,
         project_id: &str,
         merge_request_id: &str,
         merge_request_iid: &str,
-    ) -> Result<Vec<ClosedIssueOnMerge>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<ClosedIssueOnMerge>, Box<dyn Sync + Send + std::error::Error>> {
         let url = format!(
             "{}/projects/{}/merge_requests/{}/closes_issues",
-            gitlab_rest_endpoint, project_id, merge_request_iid
+            self.endpoint, project_id, merge_request_iid
         );
         let res = &self.client.get(&url).send().await?.text().await?;
         let issues: Vec<ExternalIssue> = serde_json::from_str(res)?;

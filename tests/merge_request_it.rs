@@ -1,6 +1,7 @@
-use std::sync::Arc;
-
+use engineering_metrics_data_collector::client::gitlab_graphql_client::GitlabGraphQLClient;
+use engineering_metrics_data_collector::client::gitlab_rest_client::GitlabRestClient;
 use engineering_metrics_data_collector::component::merge_request::{self, DiffStatsSummary};
+use engineering_metrics_data_collector::context::GitlabContext;
 use engineering_metrics_data_collector::store::Store;
 use testcontainers::clients;
 mod postgres_container;
@@ -19,13 +20,11 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     let node = docker.run(image);
     let port = node.get_host_port_ipv4(5432);
 
-    let store = Arc::new(
-        Store::new(&format!(
-            "postgres://postgres:postgres@localhost:{}/postgres",
-            port
-        ))
-        .await,
-    );
+    let store = Store::new(&format!(
+        "postgres://postgres:postgres@localhost:{}/postgres",
+        port
+    ))
+    .await;
 
     store.migrate().await.unwrap();
 
@@ -53,15 +52,17 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
         .await;
 
     const DUMMY: &String = &String::new();
-    merge_request::import_merge_requests(
-        &rest_mock_server.uri(),
-        &graphql_mock_server.uri(),
-        DUMMY,
-        DUMMY,
-        DUMMY,
-        &store,
-    )
-    .await;
+    let merge_request_handler = merge_request::MergeRequestHandler {
+        context: GitlabContext {
+            store: store.to_owned(),
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, rest_mock_server.uri()).await,
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, graphql_mock_server.uri()).await,
+        },
+    };
+
+    merge_request_handler
+        .import_merge_requests(DUMMY, DUMMY)
+        .await;
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, project_id, created_at, merged_at, diff_stats_summary, mr_web_url
@@ -219,7 +220,16 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
         labels: Option::None,
     };
 
-    merge_request::persist_merge_request(&store, &mr).await;
+    const DUMMY: &String = &String::new();
+    let merge_request_handler = merge_request::MergeRequestHandler {
+        context: GitlabContext {
+            store,
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).await,
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, DUMMY.to_string()).await,
+        },
+    };
+
+    merge_request_handler.persist_merge_request(&mr).await;
 
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, created_at, merged_at, diff_stats_summary,
         project_name, updated_at, created_by, merged_by, approved, approved_by
@@ -307,7 +317,16 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
         labels: Some(vec!["bug".to_string(), "engineering".to_string()]),
     };
 
-    merge_request::persist_merge_request(&store, &mr).await;
+    const DUMMY: &String = &String::new();
+    let merge_request_handler = merge_request::MergeRequestHandler {
+        context: GitlabContext {
+            store,
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).await,
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, DUMMY.to_string()).await,
+        },
+    };
+
+    merge_request_handler.persist_merge_request(&mr).await;
 
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, project_name, project_path, created_at, merged_at, diff_stats_summary,
         project_name, updated_at, created_by, merged_by, approved, approved_by
@@ -361,13 +380,20 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
 
 #[tokio::test]
 async fn should_fetch_from_gitlab_graphql_successfully() {
+    let docker = clients::Cli::default();
+    let image = postgres_container::Postgres::default();
+    let node = docker.run(image);
+    let port = node.get_host_port_ipv4(5432);
+    let store = Store::new(&format!(
+        "postgres://postgres:postgres@localhost:{}/postgres",
+        port
+    ))
+    .await;
+    store.migrate().await.unwrap();
     let mock_server = MockServer::start().await;
     let expected_body = get_graphql_query_response_mock().await;
-    // let request_body = json!({ "query": "query { group(fullPath: \"gitlab\") { mergeRequests { nodes { id title } } } }" });
 
     Mock::given(method("POST"))
-        // .and(path("/graphql"))
-        // .and(body_string(request_body.to_string()))
         .respond_with(ResponseTemplate::new(200).set_body_string(expected_body))
         .mount(&mock_server)
         .await;
@@ -381,14 +407,18 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
     assert_eq!(resp.status(), 200);
 
     const DUMMY: &String = &String::new();
-    let result = merge_request::fetch_group_merge_requests(
-        &mock_server.uri(),
-        DUMMY,
-        DUMMY,
-        DUMMY,
-        Option::None,
-    )
-    .await;
+    let merge_request_handler = merge_request::MergeRequestHandler {
+        context: GitlabContext {
+            store,
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).await,
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, mock_server.uri()).await,
+        },
+    };
+
+    let result = merge_request_handler
+        .fetch_group_merge_requests(DUMMY, DUMMY, Option::None)
+        .await;
+
     assert_eq!(result.merge_requests.len(), 2);
 }
 

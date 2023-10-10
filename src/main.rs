@@ -1,7 +1,12 @@
-use engineering_metrics_data_collector::component::{
-    external_issue, issue, merge_request, project,
-};
+use engineering_metrics_data_collector::client::atlassian_rest_client::AtlassianRestClient;
+use engineering_metrics_data_collector::client::gitlab_graphql_client::GitlabGraphQLClient;
+use engineering_metrics_data_collector::client::gitlab_rest_client::GitlabRestClient;
+use engineering_metrics_data_collector::component::external_issue;
+use engineering_metrics_data_collector::component::issue::IssueHandler;
+use engineering_metrics_data_collector::component::merge_request::MergeRequestHandler;
+use engineering_metrics_data_collector::component::project::ProjectHandler;
 
+use engineering_metrics_data_collector::context::{AtlassianContext, GitlabContext};
 use engineering_metrics_data_collector::store::Store;
 use std::env;
 use std::sync::Arc;
@@ -40,36 +45,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let external_issue_tracker_enabled =
         env::var("EXTERNAL_ISSUE_TRACKER_ENABLED").map_or_else(|_| false, |val| val == "true");
 
-    let store = Arc::new(Store::new(&database_url).await);
+    let gitlab_graphql_client =
+        GitlabGraphQLClient::new(&authorization_header, gitlab_graphql_endpoint).await;
+    let gitlab_rest_client =
+        GitlabRestClient::new(&authorization_header, gitlab_rest_endpoint).await;
+
+    let store = Store::new(&database_url).await;
     store.migrate().await.unwrap();
 
+    let context = GitlabContext {
+        store: store.clone(),
+        gitlab_rest_client,
+        gitlab_graphql_client,
+    };
+
+    let project_handler = Arc::new(ProjectHandler {
+        context: context.clone(),
+    });
+    let merge_request_handler = Arc::new(MergeRequestHandler {
+        context: context.clone(),
+    });
+    let issue_handler = IssueHandler {
+        context: context.clone(),
+    };
+
     let start_time = Instant::now();
-    let group_full_paths: Vec<&str> = group_full_paths.split(',').collect();
-    for group_full_path in group_full_paths {
-        project::import_projects(
-            &gitlab_graphql_endpoint,
-            &authorization_header,
-            group_full_path,
-            &store,
-        )
-        .await;
-        merge_request::import_merge_requests(
-            &gitlab_rest_endpoint,
-            &gitlab_graphql_endpoint,
-            &authorization_header,
-            group_full_path,
-            &updated_after,
-            &store,
-        )
-        .await;
-        issue::import_issues(
-            &gitlab_graphql_endpoint,
-            &authorization_header,
-            group_full_path,
-            &updated_after,
-            &store,
-        )
-        .await;
+    let group_full_paths: Vec<String> =
+        group_full_paths.split(',').map(|s| s.to_string()).collect();
+    for group_full_path in &group_full_paths {
+        let mut futures = Vec::new();
+
+        // projects
+        let project_handler = Arc::clone(&project_handler);
+        let gfp1 = group_full_path.clone();
+        let task = tokio::spawn(async move {
+            project_handler.import_projects(&gfp1).await;
+        });
+        futures.push(task);
+
+        // merge requests
+        let merge_request_handler = Arc::clone(&merge_request_handler);
+        let gfp2 = group_full_path.clone();
+        let ua1 = updated_after.clone();
+        let task = tokio::spawn(async move {
+            merge_request_handler
+                .import_merge_requests(&gfp2, &ua1)
+                .await;
+        });
+        futures.push(task);
+
+        futures::future::join_all(futures).await;
+
+        // TODO:nv figure out how to use Arc & tokio::spawn with issue_handler
+        let ua2 = updated_after.clone();
+        let gfp3 = group_full_path.clone();
+        issue_handler.clone().import_issues(&gfp3, &ua2).await;
+    }
+
+    let mut futures = Vec::new();
+    for _ in &group_full_paths {
         if external_issue_tracker_enabled {
             let atlassian_rest_endpoint = env::var("ATLASSIAN_REST_ENDPOINT")
                 .expect("ATLASSIAN_REST_ENDPOINT environment variable is not set.")
@@ -80,18 +114,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let atlassian_jira_issue_url_prefix = env::var("ATLASSIAN_JIRA_ISSUE_URL_PREFIX")
                 .expect("ATLASSIAN_JIRA_ISSUE_URL_PREFIX environment variable is not set.")
                 .to_string();
-            external_issue::import_external_issues(
-                &atlassian_jira_issue_url_prefix,
-                &atlassian_rest_endpoint,
-                &atlassian_authorization_header,
-                &updated_after,
-                &store,
-            )
-            .await;
+
+            let atlassian_jira_rest_client =
+                AtlassianRestClient::new(&atlassian_authorization_header, atlassian_rest_endpoint)
+                    .await;
+            let atlassian_context = AtlassianContext {
+                store: store.clone(),
+                atlassian_jira_issue_url_prefix,
+                atlassian_jira_rest_client,
+            };
+
+            let external_issue_handler = external_issue::ExternalIssueHandler {
+                context: atlassian_context,
+            };
+
+            let ua3 = updated_after.clone();
+            let task = tokio::spawn(async move {
+                external_issue_handler.import_external_issues(&ua3).await;
+            });
+            futures.push(task);
         } else {
             println!("External issue tracker is disabled.");
         }
     }
+    futures::future::join_all(futures).await;
+
     let elapsed = start_time.elapsed();
     println!("Time elapsed: {:?}", elapsed);
 

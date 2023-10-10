@@ -1,6 +1,7 @@
-use std::sync::Arc;
-
-use engineering_metrics_data_collector::component::project::{self};
+use engineering_metrics_data_collector::client::gitlab_graphql_client::GitlabGraphQLClient;
+use engineering_metrics_data_collector::client::gitlab_rest_client::GitlabRestClient;
+use engineering_metrics_data_collector::component::project::ProjectHandler;
+use engineering_metrics_data_collector::context::GitlabContext;
 use engineering_metrics_data_collector::store::Store;
 use testcontainers::clients;
 mod postgres_container;
@@ -17,13 +18,11 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
     let node = docker.run(image);
     let port = node.get_host_port_ipv4(5432);
 
-    let store = Arc::new(
-        Store::new(&format!(
-            "postgres://postgres:postgres@localhost:{}/postgres",
-            port
-        ))
-        .await,
-    );
+    let store = Store::new(&format!(
+        "postgres://postgres:postgres@localhost:{}/postgres",
+        port
+    ))
+    .await;
 
     store.migrate().await.unwrap();
 
@@ -34,7 +33,15 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
         .mount(&mock_server)
         .await;
     const DUMMY: &String = &String::new();
-    project::import_projects(&mock_server.uri(), DUMMY, DUMMY, &store).await;
+    let project_handler = ProjectHandler {
+        context: GitlabContext {
+            store: store.clone(),
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).await,
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, mock_server.uri()).await,
+        },
+    };
+
+    project_handler.import_projects(DUMMY).await;
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
     let result = sqlx::query("SELECT p_id, p_name, p_path, p_full_path, p_web_url, topics from engineering_metrics.projects")

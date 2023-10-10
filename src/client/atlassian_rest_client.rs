@@ -3,10 +3,11 @@ use serde::Deserialize;
 #[derive(Debug, Clone)]
 pub struct AtlassianRestClient {
     client: reqwest::Client,
+    jira_rest_endpoint: String,
 }
 
 impl AtlassianRestClient {
-    pub async fn new(authorization_header: &str) -> Self {
+    pub async fn new(authorization_header: &str, jira_rest_endpoint: String) -> Self {
         let client = reqwest::Client::builder()
             .user_agent("engineering-metrics-data-collector")
             .default_headers(
@@ -19,15 +20,14 @@ impl AtlassianRestClient {
             .build()
             .unwrap();
 
-        AtlassianRestClient { client }
+        AtlassianRestClient {
+            client,
+            jira_rest_endpoint,
+        }
     }
 
-    pub async fn fetch_jira_issue(
-        &self,
-        issue_key: &str,
-        jira_rest_endpoint: &str,
-    ) -> Result<JiraIssue, reqwest::Error> {
-        let url = format!("{}/issue/{}", jira_rest_endpoint, issue_key);
+    pub async fn fetch_jira_issue(&self, issue_key: &str) -> Result<JiraIssue, reqwest::Error> {
+        let url = format!("{}/issue/{}", self.jira_rest_endpoint, issue_key);
         let response = &self
             .client
             .get(&url)

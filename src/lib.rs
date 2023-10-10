@@ -12,3 +12,5 @@ pub mod client;
 ///
 /// The components contain the logic for interacting with the database and the 3rd party services.
 pub mod component;
+
+pub mod context;
