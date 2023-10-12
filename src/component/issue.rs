@@ -127,7 +127,7 @@ impl IssueHandler {
         .unwrap();
     }
 
-    pub async fn import_issues(self, group_full_path: &str, updated_after: &str) {
+    pub async fn import_issues(&self, group_full_path: &str, updated_after: &str) {
         let mut has_more_merge_issues = true;
         let mut after_pointer_token = Option::None;
 

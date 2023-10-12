@@ -65,9 +65,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let merge_request_handler = Arc::new(MergeRequestHandler {
         context: context.clone(),
     });
-    let issue_handler = IssueHandler {
+    let issue_handler = Arc::new(IssueHandler {
         context: context.clone(),
-    };
+    });
 
     let start_time = Instant::now();
     let group_full_paths: Vec<String> =
@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut futures = Vec::new();
 
         // projects
-        let project_handler = Arc::clone(&project_handler);
+        let project_handler = project_handler.clone();
         let gfp1 = group_full_path.clone();
         let task = tokio::spawn(async move {
             project_handler.import_projects(&gfp1).await;
@@ -84,9 +84,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         futures.push(task);
 
         // merge requests
-        let merge_request_handler = Arc::clone(&merge_request_handler);
         let gfp2 = group_full_path.clone();
         let ua1 = updated_after.clone();
+        let merge_request_handler = merge_request_handler.clone();
         let task = tokio::spawn(async move {
             merge_request_handler
                 .import_merge_requests(&gfp2, &ua1)
@@ -94,12 +94,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         futures.push(task);
 
-        futures::future::join_all(futures).await;
-
-        // TODO:nv figure out how to use Arc & tokio::spawn with issue_handler
+        // issues
         let ua2 = updated_after.clone();
         let gfp3 = group_full_path.clone();
-        issue_handler.clone().import_issues(&gfp3, &ua2).await;
+        let issue_handler = issue_handler.clone();
+        let task = tokio::spawn(async move {
+            issue_handler.import_issues(&gfp3, &ua2).await;
+        });
+        futures.push(task);
+
+        futures::future::join_all(futures).await;
     }
 
     let mut futures = Vec::new();
