@@ -1,5 +1,6 @@
 use crate::context::GitlabContext;
 
+#[derive(Debug, Clone)]
 pub struct ProjectHandler {
     pub context: GitlabContext,
 }

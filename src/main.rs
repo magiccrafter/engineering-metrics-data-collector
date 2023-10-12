@@ -9,7 +9,6 @@ use engineering_metrics_data_collector::component::project::ProjectHandler;
 use engineering_metrics_data_collector::context::{AtlassianContext, GitlabContext};
 use engineering_metrics_data_collector::store::Store;
 use std::env;
-use std::sync::Arc;
 use std::time::Instant;
 
 #[tokio::main]
@@ -59,15 +58,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         gitlab_graphql_client,
     };
 
-    let project_handler = Arc::new(ProjectHandler {
+    let project_handler = ProjectHandler {
         context: context.clone(),
-    });
-    let merge_request_handler = Arc::new(MergeRequestHandler {
+    };
+    let merge_request_handler = MergeRequestHandler {
         context: context.clone(),
-    });
-    let issue_handler = Arc::new(IssueHandler {
+    };
+    let issue_handler = IssueHandler {
         context: context.clone(),
-    });
+    };
 
     let start_time = Instant::now();
     let group_full_paths: Vec<String> =
