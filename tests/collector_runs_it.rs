@@ -80,7 +80,11 @@ async fn should_persist_and_then_fetch_last_successful_collector_run_from_db() {
             .unix_timestamp()
     );
     assert_eq!(
-        unwrapped_result.last_successful_run_completed_at,
-        collector_run.last_successful_run_completed_at
+        unwrapped_result
+            .last_successful_run_completed_at
+            .unix_timestamp(),
+        collector_run
+            .last_successful_run_completed_at
+            .unix_timestamp()
     );
 }
