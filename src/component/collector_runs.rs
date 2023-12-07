@@ -46,8 +46,8 @@ impl CollectorRunsHandler {
             INSERT INTO engineering_metrics.collector_runs (last_successful_run_started_at, last_successful_run_completed_at)
             VALUES ($1, $2)
             "#)
-            .bind(&run.last_successful_run_started_at)
-            .bind(&run.last_successful_run_completed_at)
+            .bind(run.last_successful_run_started_at)
+            .bind(run.last_successful_run_completed_at)
         .execute(&mut conn)
         .await
         .unwrap();
