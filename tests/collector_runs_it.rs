@@ -1,3 +1,4 @@
+use std::ops::Add;
 use std::time::Duration;
 
 use engineering_metrics_data_collector::component::collector_runs::{
@@ -71,8 +72,12 @@ async fn should_persist_and_then_fetch_last_successful_collector_run_from_db() {
 
     let unwrapped_result = result.unwrap();
     assert_eq!(
-        unwrapped_result.last_successful_run_started_at,
-        collector_run.last_successful_run_started_at
+        unwrapped_result
+            .last_successful_run_started_at
+            .unix_timestamp(),
+        collector_run
+            .last_successful_run_started_at
+            .unix_timestamp()
     );
     assert_eq!(
         unwrapped_result.last_successful_run_completed_at,
