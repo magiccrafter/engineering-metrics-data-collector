@@ -66,3 +66,10 @@ create table engineering_metrics.external_issues (
     imported_at timestamptz not null,
     primary key (issue_tracker, issue_id)
 );
+
+create table engineering_metrics.collector_runs (
+    id serial not null,
+    last_successful_run_started_at timestamptz not null,
+    last_successful_run_completed_at timestamptz not null,
+    primary key (id)
+);
