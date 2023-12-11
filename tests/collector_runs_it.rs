@@ -1,4 +1,3 @@
-use std::ops::Add;
 use std::time::Duration;
 
 use engineering_metrics_data_collector::component::collector_runs::{
@@ -8,6 +7,7 @@ use engineering_metrics_data_collector::store::Store;
 use testcontainers::clients;
 mod postgres_container;
 
+use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 #[tokio::test]
@@ -33,7 +33,11 @@ async fn should_fetch_zero_collector_runs_from_db() {
         .fetch_last_successfull_collector_run()
         .await;
 
-    assert_eq!(result.is_none(), true);
+    assert_eq!(result.is_some(), true);
+    assert_eq!(
+        result.unwrap().last_successful_run_started_at,
+        OffsetDateTime::parse("2023-11-01T00:00:00Z", &Rfc3339).unwrap()
+    );
 }
 
 #[tokio::test]
