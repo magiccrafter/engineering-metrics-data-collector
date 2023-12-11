@@ -36,9 +36,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let authorization_header = env::var("GITLAB_API_TOKEN")
         .expect("GITLAB_API_TOKEN environment variable is not set.")
         .to_string();
-    // let updated_after = env::var("UPDATED_AFTER")
-    // .expect("UPDATED_AFTER environment variable is not set.")
-    // .to_string();
     let group_full_paths = env::var("GITLAB_FULL_PATH_GROUP_LIST")
         .expect("GITLAB_FULL_PATH_GROUP_LIST environment variable is not set.")
         .to_string();
