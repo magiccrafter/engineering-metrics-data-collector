@@ -1,18 +1,19 @@
 use engineering_metrics_data_collector::client::atlassian_rest_client::AtlassianRestClient;
 use engineering_metrics_data_collector::client::gitlab_graphql_client::GitlabGraphQLClient;
 use engineering_metrics_data_collector::client::gitlab_rest_client::GitlabRestClient;
-use engineering_metrics_data_collector::component::external_issue;
 use engineering_metrics_data_collector::component::issue::IssueHandler;
 use engineering_metrics_data_collector::component::merge_request::MergeRequestHandler;
 use engineering_metrics_data_collector::component::project::ProjectHandler;
+use engineering_metrics_data_collector::component::{collector_runs, external_issue};
 
 use engineering_metrics_data_collector::context::{AtlassianContext, GitlabContext};
 use engineering_metrics_data_collector::store::Store;
 use std::env;
-use std::time::Instant;
+use time::OffsetDateTime;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let start_time = OffsetDateTime::now_utc();
     /*
        RUST_BACKTRACE is an environment variable that controls whether Rust programs display a backtrace when they encounter a panic.
        A backtrace is a list of function calls that shows the sequence of events that led up to the panic.
@@ -35,9 +36,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let authorization_header = env::var("GITLAB_API_TOKEN")
         .expect("GITLAB_API_TOKEN environment variable is not set.")
         .to_string();
-    let updated_after = env::var("UPDATED_AFTER")
-        .expect("UPDATED_AFTER environment variable is not set.")
-        .to_string();
+    // let updated_after = env::var("UPDATED_AFTER")
+    // .expect("UPDATED_AFTER environment variable is not set.")
+    // .to_string();
     let group_full_paths = env::var("GITLAB_FULL_PATH_GROUP_LIST")
         .expect("GITLAB_FULL_PATH_GROUP_LIST environment variable is not set.")
         .to_string();
@@ -51,6 +52,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let store = Store::new(&database_url).await;
     store.migrate().await.unwrap();
+
+    let collector_runs_handler = collector_runs::CollectorRunsHandler {
+        store: store.clone(),
+    };
+    let last_successful_collector_run = collector_runs_handler
+        .fetch_last_successfull_collector_run()
+        .await;
+    let updated_after = match last_successful_collector_run {
+        Some(run) => run.last_successful_run_completed_at.to_string(),
+        None => OffsetDateTime::now_utc().to_string(),
+    };
 
     let context = GitlabContext {
         store: store.clone(),
@@ -68,7 +80,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         context: context.clone(),
     };
 
-    let start_time = Instant::now();
     let group_full_paths: Vec<String> =
         group_full_paths.split(',').map(|s| s.to_string()).collect();
     for group_full_path in &group_full_paths {
@@ -142,7 +153,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     futures::future::join_all(futures).await;
 
-    let elapsed = start_time.elapsed();
+    let end_time = OffsetDateTime::now_utc();
+    collector_runs_handler
+        .persist_successful_run(&collector_runs::CollectorRun {
+            last_successful_run_started_at: start_time,
+            last_successful_run_completed_at: end_time,
+        })
+        .await;
+    let elapsed = end_time - start_time;
     println!("Time elapsed: {:?}", elapsed);
 
     Ok(())
