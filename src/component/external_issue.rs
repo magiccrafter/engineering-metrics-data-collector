@@ -46,7 +46,7 @@ impl ExternalIssueHandler {
                     issue_display_id: i.issue_id.clone(),
                     title: issue.fields.summary.clone(),
                     web_url: format!(
-                        "{}{}",
+                        "{}/{}",
                         self.context.atlassian_jira_issue_url_prefix, i.issue_id
                     ),
                 };
