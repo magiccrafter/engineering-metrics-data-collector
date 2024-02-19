@@ -118,7 +118,7 @@ impl ExternalIssueHandler {
             let rows = sqlx::query(
                 r#"
                 SELECT issue_id, created_at FROM engineering_metrics.closed_issues_on_merge 
-                WHERE issue_iid is null and created_at >= to_timestamp($3, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+                WHERE issue_iid is null and created_at >= to_timestamp($3, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
                 ORDER BY issue_id, created_at 
                 LIMIT $1 
                 OFFSET $2

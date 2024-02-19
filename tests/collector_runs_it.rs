@@ -36,7 +36,7 @@ async fn should_fetch_zero_collector_runs_from_db() {
     assert_eq!(result.is_some(), true);
     assert_eq!(
         result.unwrap().last_successful_run_started_at,
-        OffsetDateTime::parse("2023-11-01T00:00:00Z", &Rfc3339).unwrap()
+        OffsetDateTime::parse("2023-01-01T00:00:00Z", &Rfc3339).unwrap()
     );
 }
 

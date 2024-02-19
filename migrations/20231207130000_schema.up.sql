@@ -75,4 +75,4 @@ create table engineering_metrics.collector_runs (
 );
 
 insert into engineering_metrics.collector_runs (last_successful_run_started_at, last_successful_run_completed_at)
-values ('2023-11-01T00:00:00Z', '2023-11-01T00:05:00Z');
+values ('2023-01-01T00:00:00Z', '2023-01-01T00:05:00Z');
