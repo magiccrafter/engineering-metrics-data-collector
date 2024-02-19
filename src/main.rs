@@ -8,8 +8,8 @@ use engineering_metrics_data_collector::component::{collector_runs, external_iss
 
 use engineering_metrics_data_collector::context::{AtlassianContext, GitlabContext};
 use engineering_metrics_data_collector::store::Store;
-use time::format_description::well_known::Rfc3339;
 use std::env;
+use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 #[tokio::main]
