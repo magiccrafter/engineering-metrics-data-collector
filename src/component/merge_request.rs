@@ -179,7 +179,7 @@ impl MergeRequestHandler {
             .bind(serde_json::to_value(&merge_request.approved_by).unwrap())
             .bind(serde_json::to_value(&merge_request.diff_stats_summary).unwrap())
             .bind(serde_json::to_value(&merge_request.labels).unwrap())
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     }
@@ -202,7 +202,7 @@ impl MergeRequestHandler {
             .bind(&issue.merge_request_id)
             .bind(&issue.merge_request_iid)
             .bind(&issue.project_id)
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     }

@@ -4,7 +4,7 @@ use engineering_metrics_data_collector::component::collector_runs::{
     CollectorRun, CollectorRunsHandler,
 };
 use engineering_metrics_data_collector::store::Store;
-use testcontainers::clients;
+use testcontainers::runners::AsyncRunner;
 mod postgres_container;
 
 use time::format_description::well_known::Rfc3339;
@@ -12,10 +12,10 @@ use time::OffsetDateTime;
 
 #[tokio::test]
 async fn should_fetch_zero_collector_runs_from_db() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
 
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
@@ -42,10 +42,10 @@ async fn should_fetch_zero_collector_runs_from_db() {
 
 #[tokio::test]
 async fn should_persist_and_then_fetch_last_successful_collector_run_from_db() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
 
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",

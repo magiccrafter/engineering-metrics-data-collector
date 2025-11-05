@@ -3,7 +3,7 @@ use engineering_metrics_data_collector::client::gitlab_rest_client::GitlabRestCl
 use engineering_metrics_data_collector::component::merge_request::{self, DiffStatsSummary};
 use engineering_metrics_data_collector::context::GitlabContext;
 use engineering_metrics_data_collector::store::Store;
-use testcontainers::clients;
+use testcontainers::runners::AsyncRunner;
 mod postgres_container;
 
 use serde_json::json;
@@ -15,10 +15,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
 async fn should_successfully_import_merge_requests_from_gitlab_to_the_database() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
 
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
@@ -67,7 +67,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     let mut conn = store.conn_pool.acquire().await.unwrap();
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, project_id, created_at, merged_at, diff_stats_summary, mr_web_url
         FROM engineering_metrics.merge_requests")
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     assert_eq!(result.rows_affected(), 2);
@@ -77,7 +77,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
             project_name, updated_at, created_by, merged_by, approved, approved_by
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221742778'")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
     assert_eq!(
@@ -138,7 +138,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
             project_name, updated_at, created_by, merged_by, approved, approved_by
         FROM engineering_metrics.merge_requests
         WHERE mr_id = 'gid://gitlab/MergeRequest/221706264'")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
     assert_eq!(
@@ -189,10 +189,10 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
 
 #[tokio::test]
 async fn should_persist_and_select_one_not_merged_mr_successfully() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
         port
@@ -234,7 +234,7 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, created_at, merged_at, diff_stats_summary,
         project_name, updated_at, created_by, merged_by, approved, approved_by
         FROM engineering_metrics.merge_requests")
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     assert_eq!(result.rows_affected(), 1);
@@ -242,7 +242,7 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, created_at, merged_at, diff_stats_summary,
         project_name, updated_at, created_by, merged_by, approved, approved_by
         FROM engineering_metrics.merge_requests")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
 
@@ -281,10 +281,10 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
 
 #[tokio::test]
 async fn should_persist_and_select_one_merged_mr_successfully() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
         port
@@ -331,7 +331,7 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, project_name, project_path, created_at, merged_at, diff_stats_summary,
         project_name, updated_at, created_by, merged_by, approved, approved_by
         FROM engineering_metrics.merge_requests")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
 
@@ -380,10 +380,10 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
 
 #[tokio::test]
 async fn should_fetch_from_gitlab_graphql_successfully() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
         port

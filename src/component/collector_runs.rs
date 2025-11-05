@@ -25,7 +25,7 @@ impl CollectorRunsHandler {
             LIMIT 1
             "#,
         )
-        .fetch_optional(&mut conn)
+        .fetch_optional(&mut *conn)
         .await
         .unwrap();
 
@@ -48,7 +48,7 @@ impl CollectorRunsHandler {
             "#)
             .bind(run.last_successful_run_started_at)
             .bind(run.last_successful_run_completed_at)
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     }

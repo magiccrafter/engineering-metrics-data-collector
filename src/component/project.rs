@@ -86,7 +86,7 @@ impl ProjectHandler {
             .bind(&project.full_path)
             .bind(&project.web_url)
             .bind(serde_json::to_value(&project.topics).unwrap())
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     }
