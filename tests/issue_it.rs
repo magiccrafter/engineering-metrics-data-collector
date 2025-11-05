@@ -8,7 +8,7 @@ mod postgres_container;
 
 use serde_json::json;
 use sqlx::Row;
-use testcontainers::clients;
+use testcontainers::runners::AsyncRunner;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use wiremock::matchers::method;
@@ -16,10 +16,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
 async fn should_successfully_import_issues_from_gitlab_to_the_database() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
 
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
@@ -51,7 +51,7 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
         "SELECT issue_id, issue_iid, issue_title, issue_web_url, project_id, created_at, closed_at
         FROM engineering_metrics.issues",
     )
-    .execute(&mut conn)
+    .execute(&mut *conn)
     .await
     .unwrap();
     assert_eq!(result.rows_affected(), 2);
@@ -61,7 +61,7 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
             updated_at, updated_by, closed_at, labels
         FROM engineering_metrics.issues
         WHERE issue_id = 'gid://gitlab/Issue/111122223'")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
     assert_eq!(
@@ -105,7 +105,7 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
             updated_at, updated_by, closed_at, labels
         FROM engineering_metrics.issues
         WHERE issue_id = 'gid://gitlab/Issue/111122224'")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
     assert_eq!(
@@ -144,10 +144,10 @@ async fn should_successfully_import_issues_from_gitlab_to_the_database() {
 
 #[tokio::test]
 async fn should_fetch_from_gitlab_graphql_successfully() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
 
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
@@ -185,10 +185,10 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
 
 #[tokio::test]
 async fn should_persist_and_select_one_issue_successfully() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
 
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
@@ -228,7 +228,7 @@ async fn should_persist_and_select_one_issue_successfully() {
     let result = sqlx::query("SELECT issue_id, issue_iid, issue_title, issue_web_url, project_id, created_at, updated_at, closed_at, created_by, updated_by, labels
         FROM engineering_metrics.issues
         WHERE issue_id = 'gitlab_issue/123'")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
 

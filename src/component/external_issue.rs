@@ -98,7 +98,7 @@ impl ExternalIssueHandler {
             .bind(&issue.issue_display_id)
             .bind(&issue.title)
             .bind(&issue.web_url)
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     }
@@ -126,7 +126,7 @@ impl ExternalIssueHandler {
             .bind(page_size)
             .bind(offset)
             .bind(updated_after)
-            .fetch_all(&mut conn)
+            .fetch_all(&mut *conn)
             .await
             .unwrap();
 

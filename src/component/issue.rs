@@ -122,7 +122,7 @@ impl IssueHandler {
             .bind(&issue.created_by)
             .bind(&issue.updated_by)
             .bind(&issue.project_id)
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     }

@@ -3,7 +3,7 @@ use engineering_metrics_data_collector::client::gitlab_rest_client::GitlabRestCl
 use engineering_metrics_data_collector::component::project::ProjectHandler;
 use engineering_metrics_data_collector::context::GitlabContext;
 use engineering_metrics_data_collector::store::Store;
-use testcontainers::clients;
+use testcontainers::runners::AsyncRunner;
 mod postgres_container;
 
 use serde_json::json;
@@ -13,10 +13,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
 async fn should_successfully_import_projects_from_gitlab_to_the_database() {
-    let docker = clients::Cli::default();
+    // testcontainers 0.22 uses AsyncRunner trait
     let image = postgres_container::Postgres::default();
-    let node = docker.run(image);
-    let port = node.get_host_port_ipv4(5432);
+    let node = image.start().await.unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
 
     let store = Store::new(&format!(
         "postgres://postgres:postgres@localhost:{}/postgres",
@@ -45,14 +45,14 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
     let result = sqlx::query("SELECT p_id, p_name, p_path, p_full_path, p_web_url, topics from engineering_metrics.projects")
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await
         .unwrap();
     assert_eq!(result.rows_affected(), 2);
 
     // fetch concrete project that has p_path equal to "cool_project_1"
     let result = sqlx::query("SELECT p_id, p_name, p_path, p_full_path, p_web_url, topics from engineering_metrics.projects WHERE p_path = 'project-1'")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
 
@@ -77,7 +77,7 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
 
     // fetch concrete project that has p_path equal to "cool_project_2"
     let result = sqlx::query("SELECT p_id, p_name, p_path, p_full_path, p_web_url, topics from engineering_metrics.projects WHERE p_path = 'project-2'")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap();
 
