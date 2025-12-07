@@ -37,7 +37,8 @@ impl ProjectHandler {
             .context
             .gitlab_graphql_client
             .fetch_group_projects(group_full_path, after_pointer_token)
-            .await;
+            .await
+            .expect("Failed to fetch group projects - check GitLab API credentials and group access permissions");
         // println!("group_data: {:?}", &group_data);
 
         let mut projects: Vec<Project> = Vec::new();

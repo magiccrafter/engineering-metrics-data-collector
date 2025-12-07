@@ -70,7 +70,8 @@ impl MergeRequestHandler {
             .context
             .gitlab_graphql_client
             .fetch_group_merge_requests(group_full_path, updated_after, after_pointer_token)
-            .await;
+            .await
+            .expect("Failed to fetch group merge requests - check GitLab API credentials and group access permissions");
 
         // println!("group_data: {:?}", &group_data);
 

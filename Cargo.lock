@@ -830,6 +830,7 @@ dependencies = [
  "sqlx",
  "surf",
  "testcontainers",
+ "thiserror",
  "time 0.3.36",
  "tokio",
  "wiremock",

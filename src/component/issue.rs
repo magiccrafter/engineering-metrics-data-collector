@@ -51,7 +51,8 @@ impl IssueHandler {
             .context
             .gitlab_graphql_client
             .fetch_group_issues(group_full_path, updated_after, after_pointer_token)
-            .await;
+            .await
+            .expect("Failed to fetch group issues - check GitLab API credentials and group access permissions");
 
         let mut issues: Vec<Issue> = Vec::new();
         for mr in group_data.issues.nodes.expect("GroupIssues is None") {

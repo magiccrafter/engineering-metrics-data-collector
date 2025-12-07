@@ -1,4 +1,17 @@
 use graphql_client::{reqwest::post_graphql, GraphQLQuery};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum GitlabGraphQLError {
+    #[error("Failed to execute GraphQL query: {0}")]
+    RequestError(#[from] reqwest::Error),
+    #[error("GraphQL errors: {0:?}")]
+    GraphQLErrors(Vec<String>),
+    #[error("Missing response data (no data returned from API - check authentication and permissions)")]
+    MissingData,
+    #[error("Group not found: {0}")]
+    GroupNotFound(String),
+}
 
 #[derive(Debug, Clone)]
 pub struct GitlabGraphQLClient {
@@ -28,7 +41,7 @@ impl GitlabGraphQLClient {
         group_full_path: &str,
         updated_after: &str,
         after_pointer_token: Option<String>,
-    ) -> group_merge_reqs::GroupMergeReqsGroup {
+    ) -> Result<group_merge_reqs::GroupMergeReqsGroup, GitlabGraphQLError> {
         let variables = group_merge_reqs::Variables {
             group_full_path: group_full_path.to_string(),
             updated_after: updated_after.to_string(),
@@ -39,18 +52,27 @@ impl GitlabGraphQLClient {
         // println!("{qraphql_query}");
 
         let response = post_graphql::<GroupMergeReqs, _>(&self.client, &self.url, variables)
-            .await
-            .expect("failed to execute graphql query");
+            .await?;
 
-        let response_data = response.data.expect("missing response data");
-        response_data.group.unwrap()
+        if let Some(errors) = response.errors {
+            if !errors.is_empty() {
+                return Err(GitlabGraphQLError::GraphQLErrors(
+                    errors.iter().map(|e| e.message.clone()).collect(),
+                ));
+            }
+        }
+
+        let response_data = response.data.ok_or(GitlabGraphQLError::MissingData)?;
+        response_data
+            .group
+            .ok_or_else(|| GitlabGraphQLError::GroupNotFound(group_full_path.to_string()))
     }
 
     pub async fn fetch_group_projects(
         &self,
         group_full_path: &str,
         after_pointer_token: Option<String>,
-    ) -> group_projects::GroupProjectsGroup {
+    ) -> Result<group_projects::GroupProjectsGroup, GitlabGraphQLError> {
         let variables = group_projects::Variables {
             group_full_path: group_full_path.to_string(),
             after: after_pointer_token,
@@ -60,11 +82,20 @@ impl GitlabGraphQLClient {
         // println!("{qraphql_query}");
 
         let response = post_graphql::<GroupProjects, _>(&self.client, &self.url, variables)
-            .await
-            .expect("failed to execute graphql query");
+            .await?;
 
-        let response_data = response.data.expect("missing response data");
-        response_data.group.unwrap()
+        if let Some(errors) = response.errors {
+            if !errors.is_empty() {
+                return Err(GitlabGraphQLError::GraphQLErrors(
+                    errors.iter().map(|e| e.message.clone()).collect(),
+                ));
+            }
+        }
+
+        let response_data = response.data.ok_or(GitlabGraphQLError::MissingData)?;
+        response_data
+            .group
+            .ok_or_else(|| GitlabGraphQLError::GroupNotFound(group_full_path.to_string()))
     }
 
     pub async fn fetch_group_issues(
@@ -72,7 +103,7 @@ impl GitlabGraphQLClient {
         group_full_path: &str,
         updated_after: &str,
         after_pointer_token: Option<String>,
-    ) -> group_issues::GroupIssuesGroup {
+    ) -> Result<group_issues::GroupIssuesGroup, GitlabGraphQLError> {
         let variables = group_issues::Variables {
             group_full_path: group_full_path.to_string(),
             updated_after: updated_after.to_string(),
@@ -80,11 +111,20 @@ impl GitlabGraphQLClient {
         };
 
         let response = post_graphql::<GroupIssues, _>(&self.client, &self.url, variables)
-            .await
-            .expect("failed to execute graphql query");
+            .await?;
 
-        let response_data = response.data.expect("missing response data");
-        response_data.group.unwrap()
+        if let Some(errors) = response.errors {
+            if !errors.is_empty() {
+                return Err(GitlabGraphQLError::GraphQLErrors(
+                    errors.iter().map(|e| e.message.clone()).collect(),
+                ));
+            }
+        }
+
+        let response_data = response.data.ok_or(GitlabGraphQLError::MissingData)?;
+        response_data
+            .group
+            .ok_or_else(|| GitlabGraphQLError::GroupNotFound(group_full_path.to_string()))
     }
 }
 
