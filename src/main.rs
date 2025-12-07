@@ -57,10 +57,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let last_successful_collector_run = collector_runs_handler
         .fetch_last_successfull_collector_run()
         .await;
-    let updated_after = match last_successful_collector_run {
+    let updated_after = match &last_successful_collector_run {
         Some(run) => run.last_successful_run_completed_at.format(&Rfc3339)?,
         None => OffsetDateTime::now_utc().format(&Rfc3339)?,
     };
+
+    println!(
+        "Last successful collector run: {:?}",
+        last_successful_collector_run
+    );
+    println!("Fetching data updated after: {}", updated_after);
 
     let context = GitlabContext {
         store: store.clone(),
@@ -81,12 +87,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let group_full_paths: Vec<String> =
         group_full_paths.split(',').map(|s| s.to_string()).collect();
     for group_full_path in &group_full_paths {
+        println!("Processing group: {}", group_full_path);
         let mut futures = Vec::new();
 
         // projects
         let project_handler = project_handler.clone();
         let gfp1 = group_full_path.clone();
         let task = tokio::spawn(async move {
+            println!("Starting projects import for group={}", &gfp1);
             project_handler.import_projects(&gfp1).await;
         });
         futures.push(task);
@@ -96,6 +104,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ua1 = updated_after.clone();
         let merge_request_handler = merge_request_handler.clone();
         let task = tokio::spawn(async move {
+            println!(
+                "Starting merge requests import for group={}, updated_after={}",
+                &gfp2, &ua1
+            );
             merge_request_handler
                 .import_merge_requests(&gfp2, &ua1)
                 .await;
@@ -107,11 +119,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let gfp3 = group_full_path.clone();
         let issue_handler = issue_handler.clone();
         let task = tokio::spawn(async move {
+            println!(
+                "Starting issues import for group={}, updated_after={}",
+                &gfp3, &ua2
+            );
             issue_handler.import_issues(&gfp3, &ua2).await;
         });
         futures.push(task);
 
-        futures::future::join_all(futures).await;
+        let results = futures::future::join_all(futures).await;
+        for (i, result) in results.into_iter().enumerate() {
+            if let Err(e) = result {
+                eprintln!("Task {} failed for group {}: {:?}", i, group_full_path, e);
+            }
+        }
     }
 
     let mut futures = Vec::new();

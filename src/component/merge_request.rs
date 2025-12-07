@@ -211,6 +211,7 @@ impl MergeRequestHandler {
     pub async fn import_merge_requests(&self, group_full_path: &str, updated_after: &str) {
         let mut has_more_merge_requests = true;
         let mut after_pointer_token = Option::None;
+        let mut total_imported = 0;
 
         while has_more_merge_requests {
             let res = self
@@ -221,6 +222,12 @@ impl MergeRequestHandler {
                 )
                 .await;
 
+            let batch_count = res.merge_requests.len();
+            println!(
+                "Fetched {} merge requests in this batch for group={}",
+                batch_count, group_full_path
+            );
+
             for merge_request in res.merge_requests {
                 self.persist_merge_request(&merge_request).await;
                 self.import_closed_issues_on_merge(
@@ -229,14 +236,15 @@ impl MergeRequestHandler {
                     &merge_request.mr_iid,
                 )
                 .await;
+                total_imported += 1;
             }
 
             after_pointer_token = res.page_info.end_cursor;
             has_more_merge_requests = res.page_info.has_next_page;
         }
         println!(
-            "Done importing merge requests data for group={}.",
-            &group_full_path
+            "Done importing merge requests data for group={}. Total imported: {}",
+            &group_full_path, total_imported
         );
     }
 
