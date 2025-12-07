@@ -1,5 +1,20 @@
-use graphql_client::{reqwest::post_graphql, GraphQLQuery};
+use graphql_client::GraphQLQuery;
+use serde::Serialize;
 use thiserror::Error;
+
+/// Custom post_graphql helper that works with any reqwest version.
+/// This decouples us from graphql_client's reqwest dependency.
+async fn post_graphql<Q: GraphQLQuery>(
+    client: &reqwest::Client,
+    url: &str,
+    variables: Q::Variables,
+) -> Result<graphql_client::Response<Q::ResponseData>, reqwest::Error>
+where
+    Q::Variables: Serialize,
+{
+    let body = Q::build_query(variables);
+    client.post(url).json(&body).send().await?.json().await
+}
 
 #[derive(Error, Debug)]
 pub enum GitlabGraphQLError {
@@ -53,8 +68,7 @@ impl GitlabGraphQLClient {
         // let qraphql_query = include_str!("gitlab_group_mrs_query.graphql");
         // println!("{qraphql_query}");
 
-        let response =
-            post_graphql::<GroupMergeReqs, _>(&self.client, &self.url, variables).await?;
+        let response = post_graphql::<GroupMergeReqs>(&self.client, &self.url, variables).await?;
 
         if let Some(errors) = response.errors {
             if !errors.is_empty() {
@@ -83,7 +97,7 @@ impl GitlabGraphQLClient {
         // let qraphql_query = include_str!("gitlab_group_projects_query.graphql");
         // println!("{qraphql_query}");
 
-        let response = post_graphql::<GroupProjects, _>(&self.client, &self.url, variables).await?;
+        let response = post_graphql::<GroupProjects>(&self.client, &self.url, variables).await?;
 
         if let Some(errors) = response.errors {
             if !errors.is_empty() {
@@ -111,7 +125,7 @@ impl GitlabGraphQLClient {
             after: after_pointer_token,
         };
 
-        let response = post_graphql::<GroupIssues, _>(&self.client, &self.url, variables).await?;
+        let response = post_graphql::<GroupIssues>(&self.client, &self.url, variables).await?;
 
         if let Some(errors) = response.errors {
             if !errors.is_empty() {
