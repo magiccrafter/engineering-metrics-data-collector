@@ -7,7 +7,9 @@ pub enum GitlabGraphQLError {
     RequestError(#[from] reqwest::Error),
     #[error("GraphQL errors: {0:?}")]
     GraphQLErrors(Vec<String>),
-    #[error("Missing response data (no data returned from API - check authentication and permissions)")]
+    #[error(
+        "Missing response data (no data returned from API - check authentication and permissions)"
+    )]
     MissingData,
     #[error("Group not found: {0}")]
     GroupNotFound(String),
@@ -51,8 +53,8 @@ impl GitlabGraphQLClient {
         // let qraphql_query = include_str!("gitlab_group_mrs_query.graphql");
         // println!("{qraphql_query}");
 
-        let response = post_graphql::<GroupMergeReqs, _>(&self.client, &self.url, variables)
-            .await?;
+        let response =
+            post_graphql::<GroupMergeReqs, _>(&self.client, &self.url, variables).await?;
 
         if let Some(errors) = response.errors {
             if !errors.is_empty() {
@@ -81,8 +83,7 @@ impl GitlabGraphQLClient {
         // let qraphql_query = include_str!("gitlab_group_projects_query.graphql");
         // println!("{qraphql_query}");
 
-        let response = post_graphql::<GroupProjects, _>(&self.client, &self.url, variables)
-            .await?;
+        let response = post_graphql::<GroupProjects, _>(&self.client, &self.url, variables).await?;
 
         if let Some(errors) = response.errors {
             if !errors.is_empty() {
@@ -110,8 +111,7 @@ impl GitlabGraphQLClient {
             after: after_pointer_token,
         };
 
-        let response = post_graphql::<GroupIssues, _>(&self.client, &self.url, variables)
-            .await?;
+        let response = post_graphql::<GroupIssues, _>(&self.client, &self.url, variables).await?;
 
         if let Some(errors) = response.errors {
             if !errors.is_empty() {
