@@ -38,6 +38,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let group_full_paths = env::var("GITLAB_FULL_PATH_GROUP_LIST")
         .expect("GITLAB_FULL_PATH_GROUP_LIST environment variable is not set.")
         .to_string();
+    let ai_base_url = env::var("AI_BASE_URL")
+        .expect("AI_BASE_URL environment variable is not set.")
+        .to_string();
+    let ai_model = env::var("AI_MODEL")
+        .expect("AI_MODEL environment variable is not set.")
+        .to_string();
+    let ai_api_key = env::var("AI_API_KEY")
+        .expect("AI_API_KEY environment variable is not set.")
+        .to_string();
 
     let gitlab_graphql_client =
         GitlabGraphQLClient::new(&authorization_header, gitlab_graphql_endpoint)?;
@@ -67,6 +76,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         store: store.clone(),
         gitlab_rest_client,
         gitlab_graphql_client,
+        ai_base_url,
+        ai_model,
+        ai_api_key,
     };
 
     let project_handler = ProjectHandler {

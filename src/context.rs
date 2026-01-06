@@ -8,4 +8,7 @@ pub struct GitlabContext {
     pub store: Store,
     pub gitlab_graphql_client: GitlabGraphQLClient,
     pub gitlab_rest_client: GitlabRestClient,
+    pub ai_base_url: String,
+    pub ai_model: String,
+    pub ai_api_key: String,
 }

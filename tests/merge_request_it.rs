@@ -58,6 +58,9 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
             gitlab_rest_client: GitlabRestClient::new(DUMMY, rest_mock_server.uri()).unwrap(),
             gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, graphql_mock_server.uri())
                 .unwrap(),
+            ai_base_url: "http://localhost:11434/v1".to_string(),
+            ai_model: "llama3".to_string(),
+            ai_api_key: "test-key".to_string(),
         },
     };
 
@@ -232,6 +235,9 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
             store,
             gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).unwrap(),
             gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, DUMMY.to_string()).unwrap(),
+            ai_base_url: "http://localhost:11434/v1".to_string(),
+            ai_model: "llama3".to_string(),
+            ai_api_key: "test-key".to_string(),
         },
     };
 
@@ -337,6 +343,9 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
             store,
             gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).unwrap(),
             gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, DUMMY.to_string()).unwrap(),
+            ai_base_url: "http://localhost:11434/v1".to_string(),
+            ai_model: "llama3".to_string(),
+            ai_api_key: "test-key".to_string(),
         },
     };
 
@@ -429,6 +438,9 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
             store,
             gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).unwrap(),
             gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, mock_server.uri()).unwrap(),
+            ai_base_url: "http://localhost:11434/v1".to_string(),
+            ai_model: "llama3".to_string(),
+            ai_api_key: "test-key".to_string(),
         },
     };
 
