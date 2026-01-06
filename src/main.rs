@@ -63,7 +63,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     let updated_after = match &last_successful_collector_run {
         Some(run) => run.last_successful_run_completed_at.format(&Rfc3339)?,
-        None => OffsetDateTime::now_utc().format(&Rfc3339)?,
+        None => {
+            // Check for INITIAL_INGESTION_DATE env var, otherwise use current time
+            env::var("INITIAL_INGESTION_DATE")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| OffsetDateTime::now_utc().format(&Rfc3339).unwrap())
+        }
     };
 
     println!(
