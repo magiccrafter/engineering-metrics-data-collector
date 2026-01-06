@@ -40,19 +40,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_string();
 
     let gitlab_graphql_client =
-        GitlabGraphQLClient::new(&authorization_header, gitlab_graphql_endpoint).await;
-    let gitlab_rest_client =
-        GitlabRestClient::new(&authorization_header, gitlab_rest_endpoint).await;
+        GitlabGraphQLClient::new(&authorization_header, gitlab_graphql_endpoint)?;
+    let gitlab_rest_client = GitlabRestClient::new(&authorization_header, gitlab_rest_endpoint)?;
 
     let store = Store::new(&database_url).await;
-    store.migrate().await.unwrap();
+    store.migrate().await?;
 
     let collector_runs_handler = collector_runs::CollectorRunsHandler {
         store: store.clone(),
     };
     let last_successful_collector_run = collector_runs_handler
         .fetch_last_successfull_collector_run()
-        .await;
+        .await?;
     let updated_after = match &last_successful_collector_run {
         Some(run) => run.last_successful_run_completed_at.format(&Rfc3339)?,
         None => OffsetDateTime::now_utc().format(&Rfc3339)?,
@@ -121,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             last_successful_run_started_at: start_time,
             last_successful_run_completed_at: end_time,
         })
-        .await;
+        .await?;
     let elapsed = end_time - start_time;
     println!("Time elapsed: {:?}", elapsed);
 

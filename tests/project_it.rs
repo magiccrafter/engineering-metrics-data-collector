@@ -36,8 +36,8 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
     let project_handler = ProjectHandler {
         context: GitlabContext {
             store: store.clone(),
-            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).await,
-            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, mock_server.uri()).await,
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).unwrap(),
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, mock_server.uri()).unwrap(),
         },
     };
 

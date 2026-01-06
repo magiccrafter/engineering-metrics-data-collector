@@ -31,7 +31,8 @@ async fn should_fetch_zero_collector_runs_from_db() {
 
     let result = collector_runs_handler
         .fetch_last_successfull_collector_run()
-        .await;
+        .await
+        .unwrap();
 
     assert!(result.is_some());
     assert_eq!(
@@ -66,11 +67,13 @@ async fn should_persist_and_then_fetch_last_successful_collector_run_from_db() {
 
     collector_runs_handler
         .persist_successful_run(&collector_run)
-        .await;
+        .await
+        .unwrap();
 
     let result = collector_runs_handler
         .fetch_last_successfull_collector_run()
-        .await;
+        .await
+        .unwrap();
 
     assert!(result.is_some());
 

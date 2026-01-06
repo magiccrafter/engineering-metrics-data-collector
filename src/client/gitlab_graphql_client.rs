@@ -28,6 +28,8 @@ pub enum GitlabGraphQLError {
     MissingData,
     #[error("Group not found: {0}")]
     GroupNotFound(String),
+    #[error("Invalid authorization header: {0}")]
+    InvalidHeader(String),
 }
 
 #[derive(Debug, Clone)]
@@ -37,20 +39,17 @@ pub struct GitlabGraphQLClient {
 }
 
 impl GitlabGraphQLClient {
-    pub async fn new(authorization_header: &str, url: String) -> Self {
+    pub fn new(authorization_header: &str, url: String) -> Result<Self, GitlabGraphQLError> {
+        let header_value = reqwest::header::HeaderValue::from_str(authorization_header)
+            .map_err(|e| GitlabGraphQLError::InvalidHeader(e.to_string()))?;
         let client = reqwest::Client::builder()
             .user_agent("engineering-metrics-data-collector")
             .default_headers(
-                std::iter::once((
-                    reqwest::header::AUTHORIZATION,
-                    reqwest::header::HeaderValue::from_str(authorization_header).unwrap(),
-                ))
-                .collect(),
+                std::iter::once((reqwest::header::AUTHORIZATION, header_value)).collect(),
             )
-            .build()
-            .unwrap();
+            .build()?;
 
-        GitlabGraphQLClient { client, url }
+        Ok(GitlabGraphQLClient { client, url })
     }
 
     pub async fn fetch_group_merge_requests(

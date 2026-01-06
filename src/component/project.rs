@@ -1,4 +1,18 @@
+use crate::client::gitlab_graphql_client::GitlabGraphQLError;
 use crate::context::GitlabContext;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ProjectError {
+    #[error("GitLab GraphQL error: {0}")]
+    GraphQLError(#[from] GitlabGraphQLError),
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] sqlx::Error),
+    #[error("JSON serialization error: {0}")]
+    JsonError(#[from] serde_json::Error),
+    #[error("Missing data: {0}")]
+    MissingData(String),
+}
 
 #[derive(Debug, Clone)]
 pub struct ProjectHandler {
@@ -32,22 +46,24 @@ impl ProjectHandler {
         &self,
         group_full_path: &str,
         after_pointer_token: Option<String>,
-    ) -> ProjectsWithPageInfo {
+    ) -> Result<ProjectsWithPageInfo, ProjectError> {
         let group_data = self
             .context
             .gitlab_graphql_client
             .fetch_group_projects(group_full_path, after_pointer_token)
-            .await
-            .expect("Failed to fetch group projects - check GitLab API credentials and group access permissions");
+            .await?;
         // println!("group_data: {:?}", &group_data);
 
         let mut projects: Vec<Project> = Vec::new();
-        for project in group_data
+        let nodes = group_data
             .projects
             .nodes
-            .expect("GroupProjectsNodes is None")
-        {
-            let project_ref = project.as_ref().expect("project is None");
+            .ok_or_else(|| ProjectError::MissingData("GroupProjectsNodes is None".to_string()))?;
+
+        for project in nodes {
+            let project_ref = project
+                .as_ref()
+                .ok_or_else(|| ProjectError::MissingData("project is None".to_string()))?;
             projects.push(Project {
                 id: project_ref.id.clone(),
                 name: project_ref.name.clone(),
@@ -58,17 +74,17 @@ impl ProjectHandler {
             });
         }
 
-        ProjectsWithPageInfo {
+        Ok(ProjectsWithPageInfo {
             projects,
             page_info: PageInfo {
                 end_cursor: group_data.projects.page_info.end_cursor,
                 has_next_page: group_data.projects.page_info.has_next_page,
             },
-        }
+        })
     }
 
-    pub async fn persist_project(&self, project: &Project) {
-        let mut conn = self.context.store.conn_pool.acquire().await.unwrap();
+    pub async fn persist_project(&self, project: &Project) -> Result<(), ProjectError> {
+        let mut conn = self.context.store.conn_pool.acquire().await?;
         sqlx::query(
             r#"
             INSERT INTO engineering_metrics.projects (p_id, p_name, p_path, p_full_path, p_web_url, topics)
@@ -86,10 +102,11 @@ impl ProjectHandler {
             .bind(&project.path)
             .bind(&project.full_path)
             .bind(&project.web_url)
-            .bind(serde_json::to_value(&project.topics).unwrap())
+            .bind(serde_json::to_value(&project.topics)?)
         .execute(&mut *conn)
-        .await
-        .unwrap();
+        .await?;
+
+        Ok(())
     }
 
     pub async fn import_projects(&self, group_full_path: &str) {
@@ -97,12 +114,24 @@ impl ProjectHandler {
         let mut after_pointer_token = Option::None;
 
         while has_more {
-            let res = self
+            let res = match self
                 .fetch_group_projects(group_full_path, after_pointer_token.to_owned())
-                .await;
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!(
+                        "Failed to fetch projects for group {}: {}",
+                        group_full_path, e
+                    );
+                    return;
+                }
+            };
 
             for project in res.projects {
-                self.persist_project(&project).await;
+                if let Err(e) = self.persist_project(&project).await {
+                    eprintln!("Failed to persist project {}: {}", project.id, e);
+                }
             }
 
             after_pointer_token = res.page_info.end_cursor;
