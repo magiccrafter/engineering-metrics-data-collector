@@ -43,12 +43,32 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
         .mount(&rest_mock_server)
         .await;
 
+    // Mock for fetching MR changes (needed for AI summary generation)
+    let changes_mock_response = get_rest_mr_changes_response_mock().await;
+    Mock::given(method("GET"))
+        .and(path("/projects/52263413/merge_requests/777/changes"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(changes_mock_response))
+        .mount(&rest_mock_server)
+        .await;
+
     let rest_mock_server_response2 =
         get_rest_closed_issues_on_merge_for_mr_888_response_mock().await;
     Mock::given(method("GET"))
         .and(path("/projects/52263413/merge_requests/888/closes_issues"))
         .respond_with(ResponseTemplate::new(200).set_body_string(rest_mock_server_response2))
         .mount(&rest_mock_server)
+        .await;
+
+    // Mock AI server for generating summaries
+    let ai_mock_server = MockServer::start().await;
+    let ai_mock_response = get_ai_response_mock().await;
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(
+                serde_json::from_str::<serde_json::Value>(ai_mock_response).unwrap(),
+            ),
+        )
+        .mount(&ai_mock_server)
         .await;
 
     const DUMMY: &String = &String::new();
@@ -58,7 +78,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
             gitlab_rest_client: GitlabRestClient::new(DUMMY, rest_mock_server.uri()).unwrap(),
             gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, graphql_mock_server.uri())
                 .unwrap(),
-            ai_base_url: "http://localhost:11434/v1".to_string(),
+            ai_base_url: ai_mock_server.uri(),
             ai_model: "llama3".to_string(),
             ai_api_key: "test-key".to_string(),
             ai_max_context_chars: 10000,
@@ -70,12 +90,13 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
         .await;
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
+    // Only merged MRs are persisted (MR 777 is merged, MR 888 is not)
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, project_id, created_at, merged_at, diff_stats_summary, mr_web_url
         FROM engineering_metrics.merge_requests")
         .execute(&mut *conn)
         .await
         .unwrap();
-    assert_eq!(result.rows_affected(), 2);
+    assert_eq!(result.rows_affected(), 1);
 
     // fetch concrete merge request that is merged with id equal to gid://gitlab/MergeRequest/221742778
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, created_at, merged_at, diff_stats_summary,
@@ -138,58 +159,8 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
         }))
     );
 
-    // fetch concrete merge request that is not merged with id equal to gid://gitlab/MergeRequest/221706264
-    let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, created_at, merged_at, diff_stats_summary,
-            project_name, updated_at, created_by, merged_by, approved, approved_by
-        FROM engineering_metrics.merge_requests
-        WHERE mr_id = 'gid://gitlab/MergeRequest/221706264'")
-        .fetch_one(&mut *conn)
-        .await
-        .unwrap();
-    assert_eq!(
-        result.get::<String, _>("mr_id"),
-        "gid://gitlab/MergeRequest/221706264"
-    );
-    assert_eq!(result.get::<String, _>("mr_iid"), "888");
-    assert_eq!(
-        result.get::<String, _>("mr_title"),
-        "Resolve \"Increase the size of login session cache\""
-    );
-    assert_eq!(
-        result.get::<String, _>("mr_web_url"),
-        "https://gitlab.com/gitlab-org/gitlab/-/merge_requests/221706264"
-    );
-    assert_eq!(result.get::<String, _>("project_id"), "52263413");
-    assert_eq!(
-        result.get::<String, _>("project_name"),
-        "cool_project_1".to_string()
-    );
-    assert_eq!(
-        result.get::<OffsetDateTime, _>("created_at"),
-        OffsetDateTime::parse("2020-03-02T09:30:00Z", &Rfc3339).unwrap()
-    );
-    assert_eq!(
-        result.get::<OffsetDateTime, _>("updated_at"),
-        OffsetDateTime::parse("2020-03-02T09:40:00Z", &Rfc3339).unwrap()
-    );
-    assert_eq!(
-        result.get::<Option<OffsetDateTime>, _>("merged_at"),
-        Option::None
-    );
-    assert_eq!(
-        result.get::<Option<String>, _>("created_by"),
-        Some("dev3".to_string())
-    );
-    assert_eq!(result.get::<Option<String>, _>("merged_by"), Option::None);
-    assert_eq!(result.get::<Option<bool>, _>("approved"), Some(false));
-    assert_eq!(
-        result.get::<Option<serde_json::Value>, _>("approved_by"),
-        Some(json!([]))
-    );
-    assert_eq!(
-        result.get::<Option<serde_json::Value>, _>("diff_stats_summary"),
-        Some(serde_json::Value::Null)
-    );
+    // Note: Non-merged MRs (like MR 888) are skipped during import,
+    // so we only verify the merged MR is persisted correctly
 }
 
 #[tokio::test]
@@ -612,5 +583,43 @@ async fn get_rest_closed_issues_on_merge_for_mr_888_response_mock() -> &'static 
         "weight": null,
         "blocking_issues_count": 0
     }]
+    "#
+}
+
+async fn get_rest_mr_changes_response_mock() -> &'static str {
+    r#"
+    {
+        "changes": [
+            {
+                "diff": "@@ -1,3 +1,5 @@\n+# New feature\n def hello():\n     print('hello')\n+    print('world')\n",
+                "new_path": "src/hello.py",
+                "old_path": "src/hello.py"
+            }
+        ]
+    }
+    "#
+}
+
+async fn get_ai_response_mock() -> &'static str {
+    r#"
+    {
+        "id": "chatcmpl-123",
+        "object": "chat.completion",
+        "created": 1677652288,
+        "model": "llama3",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "{\"category\": \"Feature\", \"title\": \"feat(pipeline): add pipeline check\", \"summary\": \"Added a pipeline check feature to validate CI/CD configurations.\"}"
+            },
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "total_tokens": 150
+        }
+    }
     "#
 }
