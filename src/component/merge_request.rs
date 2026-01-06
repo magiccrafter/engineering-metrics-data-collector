@@ -406,21 +406,52 @@ PR Changes:
             changes_diff
         );
 
-        let chat_req = ChatRequest::new(vec![ChatMessage::user(prompt)]);
+        const MAX_RETRIES: u32 = 3;
+        let mut last_error: Option<Box<dyn std::error::Error + Send + Sync>> = None;
 
-        let response = ai_client.exec_chat(ai_model, chat_req, None).await?;
-        let content = response.content.texts().join("\n");
+        for attempt in 1..=MAX_RETRIES {
+            let chat_req = ChatRequest::new(vec![ChatMessage::user(prompt.clone())]);
 
-        // Clean markdown code blocks if present
-        let clean_content = content
-            .trim()
-            .trim_start_matches("```json")
-            .trim_start_matches("```")
-            .trim_end_matches("```")
-            .trim();
+            let response = match ai_client.exec_chat(ai_model, chat_req, None).await {
+                Ok(resp) => resp,
+                Err(e) => {
+                    eprintln!(
+                        "AI request failed (attempt {}/{}): {}",
+                        attempt, MAX_RETRIES, e
+                    );
+                    last_error = Some(Box::new(e));
+                    continue;
+                }
+            };
 
-        let ai_resp: AiResponse = serde_json::from_str(clean_content)?;
+            let content = response.content.texts().join("\n");
 
-        Ok((ai_resp.title, ai_resp.summary, ai_resp.category))
+            // Clean markdown code blocks if present
+            let clean_content = content
+                .trim()
+                .trim_start_matches("```json")
+                .trim_start_matches("```")
+                .trim_end_matches("```")
+                .trim();
+
+            match serde_json::from_str::<AiResponse>(clean_content) {
+                Ok(ai_resp) => {
+                    return Ok((ai_resp.title, ai_resp.summary, ai_resp.category));
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Failed to parse AI response as JSON (attempt {}/{}): {}. Response: {}",
+                        attempt, MAX_RETRIES, e, clean_content
+                    );
+                    last_error = Some(Box::new(e));
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            Box::new(std::io::Error::other(
+                "AI summary generation failed after all retries",
+            ))
+        }))
     }
 }
