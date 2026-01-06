@@ -1,12 +1,10 @@
-use engineering_metrics_data_collector::client::atlassian_rest_client::AtlassianRestClient;
 use engineering_metrics_data_collector::client::gitlab_graphql_client::GitlabGraphQLClient;
 use engineering_metrics_data_collector::client::gitlab_rest_client::GitlabRestClient;
-use engineering_metrics_data_collector::component::issue::IssueHandler;
+use engineering_metrics_data_collector::component::collector_runs;
 use engineering_metrics_data_collector::component::merge_request::MergeRequestHandler;
 use engineering_metrics_data_collector::component::project::ProjectHandler;
-use engineering_metrics_data_collector::component::{collector_runs, external_issue};
 
-use engineering_metrics_data_collector::context::{AtlassianContext, GitlabContext};
+use engineering_metrics_data_collector::context::GitlabContext;
 use engineering_metrics_data_collector::store::Store;
 use std::env;
 use time::format_description::well_known::Rfc3339;
@@ -40,8 +38,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let group_full_paths = env::var("GITLAB_FULL_PATH_GROUP_LIST")
         .expect("GITLAB_FULL_PATH_GROUP_LIST environment variable is not set.")
         .to_string();
-    let external_issue_tracker_enabled =
-        env::var("EXTERNAL_ISSUE_TRACKER_ENABLED").map_or_else(|_| false, |val| val == "true");
 
     let gitlab_graphql_client =
         GitlabGraphQLClient::new(&authorization_header, gitlab_graphql_endpoint).await;
@@ -80,9 +76,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let merge_request_handler = MergeRequestHandler {
         context: context.clone(),
     };
-    let issue_handler = IssueHandler {
-        context: context.clone(),
-    };
 
     let group_full_paths: Vec<String> =
         group_full_paths.split(',').map(|s| s.to_string()).collect();
@@ -114,19 +107,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         futures.push(task);
 
-        // issues
-        let ua2 = updated_after.clone();
-        let gfp3 = group_full_path.clone();
-        let issue_handler = issue_handler.clone();
-        let task = tokio::spawn(async move {
-            println!(
-                "Starting issues import for group={}, updated_after={}",
-                &gfp3, &ua2
-            );
-            issue_handler.import_issues(&gfp3, &ua2).await;
-        });
-        futures.push(task);
-
         let results = futures::future::join_all(futures).await;
         for (i, result) in results.into_iter().enumerate() {
             if let Err(e) = result {
@@ -134,43 +114,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-
-    let mut futures = Vec::new();
-    for _ in &group_full_paths {
-        if external_issue_tracker_enabled {
-            let atlassian_rest_endpoint = env::var("ATLASSIAN_REST_ENDPOINT")
-                .expect("ATLASSIAN_REST_ENDPOINT environment variable is not set.")
-                .to_string();
-            let atlassian_authorization_header = env::var("ATLASSIAN_API_TOKEN")
-                .expect("ATLASSIAN_API_TOKEN environment variable is not set.")
-                .to_string();
-            let atlassian_jira_issue_url_prefix = env::var("ATLASSIAN_JIRA_ISSUE_URL_PREFIX")
-                .expect("ATLASSIAN_JIRA_ISSUE_URL_PREFIX environment variable is not set.")
-                .to_string();
-
-            let atlassian_jira_rest_client =
-                AtlassianRestClient::new(&atlassian_authorization_header, atlassian_rest_endpoint)
-                    .await;
-            let atlassian_context = AtlassianContext {
-                store: store.clone(),
-                atlassian_jira_issue_url_prefix,
-                atlassian_jira_rest_client,
-            };
-
-            let external_issue_handler = external_issue::ExternalIssueHandler {
-                context: atlassian_context,
-            };
-
-            let ua3 = updated_after.clone();
-            let task = tokio::spawn(async move {
-                external_issue_handler.import_external_issues(&ua3).await;
-            });
-            futures.push(task);
-        } else {
-            println!("External issue tracker is disabled.");
-        }
-    }
-    futures::future::join_all(futures).await;
 
     let end_time = OffsetDateTime::now_utc();
     collector_runs_handler

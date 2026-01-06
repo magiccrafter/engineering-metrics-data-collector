@@ -12,7 +12,7 @@ async fn should_successfully_start_potgres_container() {
     let port = node.get_host_port_ipv4(5432).await.unwrap();
     print!("{}", port);
 
-    assert_eq!(port > 1000, true);
+    assert!(port > 1000);
 }
 
 #[tokio::test]

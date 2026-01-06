@@ -112,34 +112,6 @@ impl GitlabGraphQLClient {
             .group
             .ok_or_else(|| GitlabGraphQLError::GroupNotFound(group_full_path.to_string()))
     }
-
-    pub async fn fetch_group_issues(
-        &self,
-        group_full_path: &str,
-        updated_after: &str,
-        after_pointer_token: Option<String>,
-    ) -> Result<group_issues::GroupIssuesGroup, GitlabGraphQLError> {
-        let variables = group_issues::Variables {
-            group_full_path: group_full_path.to_string(),
-            updated_after: updated_after.to_string(),
-            after: after_pointer_token,
-        };
-
-        let response = post_graphql::<GroupIssues>(&self.client, &self.url, variables).await?;
-
-        if let Some(errors) = response.errors {
-            if !errors.is_empty() {
-                return Err(GitlabGraphQLError::GraphQLErrors(
-                    errors.iter().map(|e| e.message.clone()).collect(),
-                ));
-            }
-        }
-
-        let response_data = response.data.ok_or(GitlabGraphQLError::MissingData)?;
-        response_data
-            .group
-            .ok_or_else(|| GitlabGraphQLError::GroupNotFound(group_full_path.to_string()))
-    }
 }
 
 type Time = String;
@@ -159,11 +131,3 @@ struct GroupMergeReqs;
     response_derives = "Debug"
 )]
 struct GroupProjects;
-
-#[derive(GraphQLQuery, Clone)]
-#[graphql(
-    schema_path = "src/client/gitlab_group_issues_schema.graphql",
-    query_path = "src/client/gitlab_group_issues_query.graphql",
-    response_derives = "Debug"
-)]
-struct GroupIssues;

@@ -33,6 +33,7 @@ type MergeRequest {
   id: ID!
   iid: ID!
   title: String!
+  description: String
   draft: Boolean!
   webUrl: String!
   labels: LabelConnection

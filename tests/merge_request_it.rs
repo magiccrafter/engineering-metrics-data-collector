@@ -218,6 +218,11 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
         approved_by: Option::None,
         diff_stats_summary: Option::None,
         labels: Option::None,
+        mr_ai_title: Option::None,
+        mr_ai_summary: Option::None,
+        mr_ai_model: Option::None,
+        mr_ai_category: Option::None,
+        mr_description: Option::None,
     };
 
     const DUMMY: &String = &String::new();
@@ -268,7 +273,7 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
     );
     assert_eq!(result.get::<String, _>("created_by"), "user1");
     assert_eq!(result.get::<Option<String>, _>("merged_by"), Option::None);
-    assert_eq!(result.get::<bool, _>("approved"), false);
+    assert!(!result.get::<bool, _>("approved"));
     assert_eq!(
         result.get::<Option<serde_json::Value>, _>("approved_by"),
         Some(serde_json::Value::Null)
@@ -315,6 +320,11 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
             file_count: 2,
         }),
         labels: Some(vec!["bug".to_string(), "engineering".to_string()]),
+        mr_ai_title: Option::None,
+        mr_ai_summary: Option::None,
+        mr_ai_model: Option::None,
+        mr_ai_category: Option::None,
+        mr_description: Option::None,
     };
 
     const DUMMY: &String = &String::new();
@@ -362,7 +372,7 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
         result.get::<Option<String>, _>("merged_by"),
         Some("user2".to_string())
     );
-    assert_eq!(result.get::<bool, _>("approved"), true);
+    assert!(result.get::<bool, _>("approved"));
     assert_eq!(
         result.get::<Option<serde_json::Value>, _>("approved_by"),
         Some(serde_json::json!(["user3"]))
@@ -398,7 +408,7 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
         .mount(&mock_server)
         .await;
 
-    let mut resp = surf::post(&mock_server.uri()).await.unwrap();
+    let mut resp = surf::post(mock_server.uri()).await.unwrap();
     println!(
         "response body: {:?}, status: {:?}",
         &mut resp.body_string().await.unwrap(),
@@ -423,7 +433,7 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
 }
 
 async fn get_graphql_query_response_mock() -> &'static str {
-    return r#"
+    r#"
     {
         "data": {
             "queryComplexity": {
@@ -514,17 +524,17 @@ async fn get_graphql_query_response_mock() -> &'static str {
             }
         }
     }
-    "#;
+    "#
 }
 
 async fn get_rest_empty_response_mock() -> &'static str {
-    return r#"
+    r#"
     []
-    "#;
+    "#
 }
 
 async fn get_rest_closed_issues_on_merge_for_mr_888_response_mock() -> &'static str {
-    return r#"
+    r#"
     [{
         "id": 111222333444,
         "iid": 52,
@@ -578,5 +588,5 @@ async fn get_rest_closed_issues_on_merge_for_mr_888_response_mock() -> &'static 
         "weight": null,
         "blocking_issues_count": 0
     }]
-    "#;
+    "#
 }
