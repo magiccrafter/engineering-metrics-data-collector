@@ -38,6 +38,9 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
             store: store.clone(),
             gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).unwrap(),
             gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, mock_server.uri()).unwrap(),
+            ai_base_url: "http://localhost:11434/v1".to_string(),
+            ai_model: "llama3".to_string(),
+            ai_api_key: "test-key".to_string(),
         },
     };
 

@@ -1,12 +1,13 @@
 use crate::client::gitlab_graphql_client::GitlabGraphQLError;
 use crate::client::gitlab_rest_client::GitlabRestError;
 use crate::context::GitlabContext;
+use genai::adapter::AdapterKind;
 use genai::chat::{ChatMessage, ChatRequest};
-use genai::Client as GenAiClient;
+use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
+use genai::{Client as GenAiClient, ModelIden, ServiceTarget};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
-use std::env;
 use thiserror::Error;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -237,10 +238,32 @@ impl MergeRequestHandler {
         let mut after_pointer_token = Option::None;
         let mut total_imported = 0;
 
-        let ai_client = GenAiClient::default();
-        let ai_model = env::var("AI_MODEL").unwrap_or_else(|_| "llama3".to_string());
-        // Note: AI_BASE_URL is handled by rust-genai env var OLLAMA_API_BASE_URL if set, or we can configure adapter.
-        // Assuming user sets OLLAMA_API_BASE_URL or compatible env vars for rust-genai or we rely on default localhost.
+        // Get AI configuration from context
+        let ai_base_url = self.context.ai_base_url.clone();
+        let ai_model = self.context.ai_model.clone();
+        let ai_api_key = self.context.ai_api_key.clone();
+
+        // Configure GenAI client with custom ServiceTargetResolver
+        let ai_base_url_clone = ai_base_url.clone();
+        let ai_api_key_clone = ai_api_key.clone();
+
+        let target_resolver = ServiceTargetResolver::from_resolver_fn(
+            move |service_target: ServiceTarget| -> Result<ServiceTarget, genai::resolver::Error> {
+                let ServiceTarget { model, .. } = service_target;
+                let endpoint = Endpoint::from_owned(ai_base_url_clone.clone());
+                let auth = AuthData::from_single(ai_api_key_clone.clone());
+                let model = ModelIden::new(AdapterKind::OpenAI, model.model_name);
+                Ok(ServiceTarget {
+                    endpoint,
+                    auth,
+                    model,
+                })
+            },
+        );
+
+        let ai_client = GenAiClient::builder()
+            .with_service_target_resolver(target_resolver)
+            .build();
 
         while has_more_merge_requests {
             let res = match self
