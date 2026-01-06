@@ -291,24 +291,27 @@ impl MergeRequestHandler {
             );
 
             for mut merge_request in res.merge_requests {
-                // Generate AI summary if merged
-                if merge_request.merged_at.is_some() {
-                    match self
-                        .generate_ai_summary(&ai_client, &ai_model, &merge_request)
-                        .await
-                    {
-                        Ok((title, summary, category)) => {
-                            merge_request.mr_ai_title = Some(title);
-                            merge_request.mr_ai_summary = Some(summary);
-                            merge_request.mr_ai_category = Some(category);
-                            merge_request.mr_ai_model = Some(ai_model.clone());
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "Failed to generate AI summary for MR {}: {}",
-                                merge_request.mr_iid, e
-                            );
-                        }
+                // Only process merged MRs
+                if merge_request.merged_at.is_none() {
+                    continue;
+                }
+
+                // Generate AI summary for merged MRs
+                match self
+                    .generate_ai_summary(&ai_client, &ai_model, &merge_request)
+                    .await
+                {
+                    Ok((title, summary, category)) => {
+                        merge_request.mr_ai_title = Some(title);
+                        merge_request.mr_ai_summary = Some(summary);
+                        merge_request.mr_ai_category = Some(category);
+                        merge_request.mr_ai_model = Some(ai_model.clone());
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Failed to generate AI summary for MR {}: {}",
+                            merge_request.mr_iid, e
+                        );
                     }
                 }
 
