@@ -252,7 +252,7 @@ impl MergeRequestHandler {
                 let ServiceTarget { model, .. } = service_target;
                 let endpoint = Endpoint::from_owned(ai_base_url_clone.clone());
                 let auth = AuthData::from_single(ai_api_key_clone.clone());
-                let model = ModelIden::new(AdapterKind::OpenAI, model.model_name);
+                let model = ModelIden::new(AdapterKind::Ollama, model.model_name);
                 Ok(ServiceTarget {
                     endpoint,
                     auth,
