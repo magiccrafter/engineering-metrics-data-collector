@@ -33,7 +33,7 @@ async fn should_fetch_zero_collector_runs_from_db() {
         .fetch_last_successfull_collector_run()
         .await;
 
-    assert_eq!(result.is_some(), true);
+    assert!(result.is_some());
     assert_eq!(
         result.unwrap().last_successful_run_started_at,
         OffsetDateTime::parse("2023-01-01T00:00:00Z", &Rfc3339).unwrap()
@@ -72,7 +72,7 @@ async fn should_persist_and_then_fetch_last_successful_collector_run_from_db() {
         .fetch_last_successfull_collector_run()
         .await;
 
-    assert_eq!(result.is_some(), true);
+    assert!(result.is_some());
 
     let unwrapped_result = result.unwrap();
     assert_eq!(

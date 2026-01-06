@@ -99,7 +99,7 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
 }
 
 async fn get_graphql_query_response_mock() -> &'static str {
-    return r#"
+    r#"
     {
         "data": {
           "queryComplexity": {
@@ -136,5 +136,5 @@ async fn get_graphql_query_response_mock() -> &'static str {
           }
         }
       }
-    "#;
+    "#
 }

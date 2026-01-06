@@ -17,6 +17,7 @@ query GroupMergeReqs($group_full_path: ID!, $updated_after: Time!, $after: Strin
         id
         iid
         title
+        description
         draft
         webUrl
         labels {
