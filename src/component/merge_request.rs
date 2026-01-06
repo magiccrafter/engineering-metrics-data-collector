@@ -310,7 +310,7 @@ impl MergeRequestHandler {
                     Err(e) => {
                         eprintln!(
                             "Failed to generate AI summary for MR {}: {}",
-                            merge_request.mr_iid, e
+                            merge_request.mr_web_url, e
                         );
                     }
                 }
