@@ -47,6 +47,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ai_api_key = env::var("AI_API_KEY")
         .expect("AI_API_KEY environment variable is not set.")
         .to_string();
+    let ai_max_context_chars: usize = env::var("AI_MAX_CONTEXT_CHARS")
+        .expect("AI_MAX_CONTEXT_CHARS environment variable is not set.")
+        .parse()
+        .expect("AI_MAX_CONTEXT_CHARS must be a valid number");
 
     let gitlab_graphql_client =
         GitlabGraphQLClient::new(&authorization_header, gitlab_graphql_endpoint)?;
@@ -85,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ai_base_url,
         ai_model,
         ai_api_key,
+        ai_max_context_chars,
     };
 
     let project_handler = ProjectHandler {

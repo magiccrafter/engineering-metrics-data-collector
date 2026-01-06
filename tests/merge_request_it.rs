@@ -61,6 +61,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
             ai_base_url: "http://localhost:11434/v1".to_string(),
             ai_model: "llama3".to_string(),
             ai_api_key: "test-key".to_string(),
+            ai_max_context_chars: 10000,
         },
     };
 
@@ -238,6 +239,7 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
             ai_base_url: "http://localhost:11434/v1".to_string(),
             ai_model: "llama3".to_string(),
             ai_api_key: "test-key".to_string(),
+            ai_max_context_chars: 10000,
         },
     };
 
@@ -346,6 +348,7 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
             ai_base_url: "http://localhost:11434/v1".to_string(),
             ai_model: "llama3".to_string(),
             ai_api_key: "test-key".to_string(),
+            ai_max_context_chars: 10000,
         },
     };
 
@@ -441,6 +444,7 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
             ai_base_url: "http://localhost:11434/v1".to_string(),
             ai_model: "llama3".to_string(),
             ai_api_key: "test-key".to_string(),
+            ai_max_context_chars: 10000,
         },
     };
 
