@@ -345,13 +345,22 @@ impl MergeRequestHandler {
             .fetch_merge_request_changes(&mr.project_id, &mr.mr_iid)
             .await?;
 
-        // Convert changes to string representation
-        let changes_diff = changes
-            .iter()
-            .take(20) // Limit to 20 files to avoid huge context
-            .map(|c| format!("File: {}\nDiff:\n{}", c.new_path, c.diff))
-            .collect::<Vec<_>>()
-            .join("\n\n");
+        // Convert changes to string representation, limited to configured max characters
+        let mut changes_diff = String::new();
+        let max_chars = self.context.ai_max_context_chars;
+
+        for change in changes.iter() {
+            let file_diff = format!("File: {}\nDiff:\n{}\n\n", change.new_path, change.diff);
+            if changes_diff.len() + file_diff.len() > max_chars {
+                // Add as much as we can from this file
+                let remaining = max_chars.saturating_sub(changes_diff.len());
+                if remaining > 0 {
+                    changes_diff.push_str(&file_diff[..remaining.min(file_diff.len())]);
+                }
+                break;
+            }
+            changes_diff.push_str(&file_diff);
+        }
 
         let prompt = format!(
             r#"You are an expert Code Reviewer and Release Manager. Analyze the provided PR metadata (title, description, and code changes).

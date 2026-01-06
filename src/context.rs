@@ -11,4 +11,5 @@ pub struct GitlabContext {
     pub ai_base_url: String,
     pub ai_model: String,
     pub ai_api_key: String,
+    pub ai_max_context_chars: usize,
 }
