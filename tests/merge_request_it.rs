@@ -55,8 +55,9 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     let merge_request_handler = merge_request::MergeRequestHandler {
         context: GitlabContext {
             store: store.to_owned(),
-            gitlab_rest_client: GitlabRestClient::new(DUMMY, rest_mock_server.uri()).await,
-            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, graphql_mock_server.uri()).await,
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, rest_mock_server.uri()).unwrap(),
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, graphql_mock_server.uri())
+                .unwrap(),
         },
     };
 
@@ -229,12 +230,15 @@ async fn should_persist_and_select_one_not_merged_mr_successfully() {
     let merge_request_handler = merge_request::MergeRequestHandler {
         context: GitlabContext {
             store,
-            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).await,
-            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, DUMMY.to_string()).await,
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).unwrap(),
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, DUMMY.to_string()).unwrap(),
         },
     };
 
-    merge_request_handler.persist_merge_request(&mr).await;
+    merge_request_handler
+        .persist_merge_request(&mr)
+        .await
+        .unwrap();
 
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, created_at, merged_at, diff_stats_summary,
         project_name, updated_at, created_by, merged_by, approved, approved_by
@@ -331,12 +335,15 @@ async fn should_persist_and_select_one_merged_mr_successfully() {
     let merge_request_handler = merge_request::MergeRequestHandler {
         context: GitlabContext {
             store,
-            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).await,
-            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, DUMMY.to_string()).await,
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).unwrap(),
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, DUMMY.to_string()).unwrap(),
         },
     };
 
-    merge_request_handler.persist_merge_request(&mr).await;
+    merge_request_handler
+        .persist_merge_request(&mr)
+        .await
+        .unwrap();
 
     let result = sqlx::query("SELECT mr_id, mr_iid, mr_title, mr_web_url, project_id, project_name, project_path, created_at, merged_at, diff_stats_summary,
         project_name, updated_at, created_by, merged_by, approved, approved_by
@@ -420,14 +427,15 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
     let merge_request_handler = merge_request::MergeRequestHandler {
         context: GitlabContext {
             store,
-            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).await,
-            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, mock_server.uri()).await,
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, DUMMY.to_string()).unwrap(),
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, mock_server.uri()).unwrap(),
         },
     };
 
     let result = merge_request_handler
         .fetch_group_merge_requests(DUMMY, DUMMY, Option::None)
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result.merge_requests.len(), 2);
 }

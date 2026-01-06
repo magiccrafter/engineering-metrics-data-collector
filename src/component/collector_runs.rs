@@ -1,7 +1,14 @@
 use sqlx::Row;
+use thiserror::Error;
 use time::OffsetDateTime;
 
 use crate::store::Store;
+
+#[derive(Error, Debug)]
+pub enum CollectorRunsError {
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] sqlx::Error),
+}
 
 #[derive(Debug, Clone)]
 pub struct CollectorRunsHandler {
@@ -15,8 +22,10 @@ pub struct CollectorRun {
 }
 
 impl CollectorRunsHandler {
-    pub async fn fetch_last_successfull_collector_run(&self) -> Option<CollectorRun> {
-        let mut conn = self.store.conn_pool.acquire().await.unwrap();
+    pub async fn fetch_last_successfull_collector_run(
+        &self,
+    ) -> Result<Option<CollectorRun>, CollectorRunsError> {
+        let mut conn = self.store.conn_pool.acquire().await?;
         let row = sqlx::query(
             r#"
             SELECT last_successful_run_started_at, last_successful_run_completed_at
@@ -26,21 +35,23 @@ impl CollectorRunsHandler {
             "#,
         )
         .fetch_optional(&mut *conn)
-        .await
-        .unwrap();
+        .await?;
 
-        row.map(|row| {
+        Ok(row.map(|row| {
             let last_successful_run_started_at: OffsetDateTime = row.get(0);
             let last_successful_run_completed_at: OffsetDateTime = row.get(1);
             CollectorRun {
                 last_successful_run_started_at,
                 last_successful_run_completed_at,
             }
-        })
+        }))
     }
 
-    pub async fn persist_successful_run(&self, run: &CollectorRun) {
-        let mut conn = self.store.conn_pool.acquire().await.unwrap();
+    pub async fn persist_successful_run(
+        &self,
+        run: &CollectorRun,
+    ) -> Result<(), CollectorRunsError> {
+        let mut conn = self.store.conn_pool.acquire().await?;
         sqlx::query(
             r#"
             INSERT INTO engineering_metrics.collector_runs (last_successful_run_started_at, last_successful_run_completed_at)
@@ -49,7 +60,8 @@ impl CollectorRunsHandler {
             .bind(run.last_successful_run_started_at)
             .bind(run.last_successful_run_completed_at)
         .execute(&mut *conn)
-        .await
-        .unwrap();
+        .await?;
+
+        Ok(())
     }
 }

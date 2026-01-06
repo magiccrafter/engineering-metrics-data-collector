@@ -1,3 +1,5 @@
+use crate::client::gitlab_graphql_client::GitlabGraphQLError;
+use crate::client::gitlab_rest_client::GitlabRestError;
 use crate::context::GitlabContext;
 use genai::chat::{ChatMessage, ChatRequest};
 use genai::Client as GenAiClient;
@@ -5,8 +7,25 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
 use std::env;
+use thiserror::Error;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
+
+#[derive(Error, Debug)]
+pub enum MergeRequestError {
+    #[error("GitLab GraphQL error: {0}")]
+    GraphQLError(#[from] GitlabGraphQLError),
+    #[error("GitLab REST error: {0}")]
+    RestError(#[from] GitlabRestError),
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] sqlx::Error),
+    #[error("JSON serialization error: {0}")]
+    JsonError(#[from] serde_json::Error),
+    #[error("Date parsing error: {0}")]
+    DateParseError(#[from] time::error::Parse),
+    #[error("Missing data: {0}")]
+    MissingData(String),
+}
 
 #[derive(Debug, Clone)]
 pub struct MergeRequestHandler {
@@ -72,21 +91,24 @@ impl MergeRequestHandler {
         group_full_path: &str,
         updated_after: &str,
         after_pointer_token: Option<String>,
-    ) -> MergeRequestsWithPageInfo {
+    ) -> Result<MergeRequestsWithPageInfo, MergeRequestError> {
         let group_data = self
             .context
             .gitlab_graphql_client
             .fetch_group_merge_requests(group_full_path, updated_after, after_pointer_token)
-            .await
-            .expect("Failed to fetch group merge requests - check GitLab API credentials and group access permissions");
+            .await?;
 
         let mut merge_requests: Vec<MergeRequest> = Vec::new();
-        for mr in group_data
-            .merge_requests
-            .nodes
-            .expect("GroupMergeReqsGroupMergeRequestsNodes is None")
-        {
-            let mr_ref = mr.as_ref().expect("mr is None");
+        let nodes = group_data.merge_requests.nodes.ok_or_else(|| {
+            MergeRequestError::MissingData(
+                "GroupMergeReqsGroupMergeRequestsNodes is None".to_string(),
+            )
+        })?;
+
+        for mr in nodes {
+            let mr_ref = mr
+                .as_ref()
+                .ok_or_else(|| MergeRequestError::MissingData("mr is None".to_string()))?;
             merge_requests.push(MergeRequest {
                 mr_id: mr_ref.id.clone(),
                 mr_iid: mr_ref.iid.clone(),
@@ -96,27 +118,27 @@ impl MergeRequestHandler {
                 project_id: mr_ref.project_id.clone().to_string(),
                 project_name: mr_ref.project.name.clone(),
                 project_path: mr_ref.project.path.clone(),
-                created_at: OffsetDateTime::parse(&mr_ref.created_at.clone(), &Rfc3339).unwrap(),
-                updated_at: OffsetDateTime::parse(&mr_ref.updated_at.clone(), &Rfc3339).unwrap(),
+                created_at: OffsetDateTime::parse(&mr_ref.created_at.clone(), &Rfc3339)?,
+                updated_at: OffsetDateTime::parse(&mr_ref.updated_at.clone(), &Rfc3339)?,
                 merged_at: mr_ref
                     .merged_at
                     .clone()
-                    .map(|m_at| OffsetDateTime::parse(m_at.as_str(), &Rfc3339).unwrap()),
+                    .map(|m_at| OffsetDateTime::parse(m_at.as_str(), &Rfc3339))
+                    .transpose()?,
                 created_by: mr_ref.author.username.clone(),
                 merged_by: mr_ref.merge_user.as_ref().map(|m_by| m_by.username.clone()),
                 approved_by: mr_ref.approved_by.as_ref().map(|a_by| {
                     a_by.nodes
                         .as_ref()
-                        .unwrap()
-                        .iter()
-                        .map(|a_by_node| {
-                            a_by_node
-                                .as_ref()
-                                .expect("a_by_node is None")
-                                .username
-                                .clone()
+                        .map(|nodes| {
+                            nodes
+                                .iter()
+                                .filter_map(|a_by_node| {
+                                    a_by_node.as_ref().map(|node| node.username.clone())
+                                })
+                                .collect()
                         })
-                        .collect()
+                        .unwrap_or_default()
                 }),
                 approved: mr_ref.approved,
                 diff_stats_summary: mr_ref
@@ -132,10 +154,13 @@ impl MergeRequestHandler {
                     labels
                         .nodes
                         .as_ref()
-                        .unwrap()
-                        .iter()
-                        .map(|label| label.as_ref().expect("label is None").title.clone())
-                        .collect()
+                        .map(|nodes| {
+                            nodes
+                                .iter()
+                                .filter_map(|label| label.as_ref().map(|l| l.title.clone()))
+                                .collect()
+                        })
+                        .unwrap_or_default()
                 }),
                 mr_ai_title: None,
                 mr_ai_summary: None,
@@ -144,17 +169,20 @@ impl MergeRequestHandler {
             });
         }
 
-        MergeRequestsWithPageInfo {
+        Ok(MergeRequestsWithPageInfo {
             merge_requests,
             page_info: PageInfo {
                 end_cursor: group_data.merge_requests.page_info.end_cursor,
                 has_next_page: group_data.merge_requests.page_info.has_next_page,
             },
-        }
+        })
     }
 
-    pub async fn persist_merge_request(&self, merge_request: &MergeRequest) {
-        let mut conn = self.context.store.conn_pool.acquire().await.unwrap();
+    pub async fn persist_merge_request(
+        &self,
+        merge_request: &MergeRequest,
+    ) -> Result<(), MergeRequestError> {
+        let mut conn = self.context.store.conn_pool.acquire().await?;
 
         sqlx::query(
             r#"
@@ -191,16 +219,17 @@ impl MergeRequestHandler {
             .bind(&merge_request.created_by)
             .bind(&merge_request.merged_by)
             .bind(merge_request.approved)
-            .bind(serde_json::to_value(&merge_request.approved_by).unwrap())
-            .bind(serde_json::to_value(&merge_request.diff_stats_summary).unwrap())
-            .bind(serde_json::to_value(&merge_request.labels).unwrap())
+            .bind(serde_json::to_value(&merge_request.approved_by)?)
+            .bind(serde_json::to_value(&merge_request.diff_stats_summary)?)
+            .bind(serde_json::to_value(&merge_request.labels)?)
             .bind(&merge_request.mr_ai_title)
             .bind(&merge_request.mr_ai_summary)
             .bind(&merge_request.mr_ai_model)
             .bind(&merge_request.mr_ai_category)
         .execute(&mut *conn)
-        .await
-        .unwrap();
+        .await?;
+
+        Ok(())
     }
 
     pub async fn import_merge_requests(&self, group_full_path: &str, updated_after: &str) {
@@ -214,13 +243,23 @@ impl MergeRequestHandler {
         // Assuming user sets OLLAMA_API_BASE_URL or compatible env vars for rust-genai or we rely on default localhost.
 
         while has_more_merge_requests {
-            let res = self
+            let res = match self
                 .fetch_group_merge_requests(
                     group_full_path,
                     updated_after,
                     after_pointer_token.clone(),
                 )
-                .await;
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!(
+                        "Failed to fetch merge requests for group {}: {}",
+                        group_full_path, e
+                    );
+                    return;
+                }
+            };
 
             let batch_count = res.merge_requests.len();
             println!(
@@ -250,7 +289,12 @@ impl MergeRequestHandler {
                     }
                 }
 
-                self.persist_merge_request(&merge_request).await;
+                if let Err(e) = self.persist_merge_request(&merge_request).await {
+                    eprintln!(
+                        "Failed to persist merge request {}: {}",
+                        merge_request.mr_iid, e
+                    );
+                }
                 total_imported += 1;
             }
 
