@@ -86,7 +86,7 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     };
 
     merge_request_handler
-        .import_merge_requests(DUMMY, DUMMY)
+        .import_merge_requests(DUMMY, "2020-03-01T00:00:00Z")
         .await;
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
