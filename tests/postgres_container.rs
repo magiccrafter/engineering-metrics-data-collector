@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use testcontainers::{core::WaitFor, Image};
 
 const NAME: &str = "postgres";
-const TAG: &str = "17-alpine";
+const TAG: &str = "18-alpine";
 
 #[derive(Debug)]
 pub struct Postgres {

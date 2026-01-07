@@ -1,8 +1,6 @@
--- add down migration script here
-drop table if exists engineering_metrics.projects;
-drop table if exists engineering_metrics.issues;
-drop table if exists engineering_metrics.merge_requests;
-drop table if exists engineering_metrics.closed_issues_on_merge;
-drop table if exists engineering_metrics.external_issues;
-drop table if exists engineering_metrics.collector_runs;
-drop schema if exists engineering_metrics;
+-- Drop all tables and schema
+DROP TABLE IF EXISTS engineering_metrics.import_progress;
+DROP TABLE IF EXISTS engineering_metrics.collector_runs;
+DROP TABLE IF EXISTS engineering_metrics.merge_requests;
+DROP TABLE IF EXISTS engineering_metrics.projects;
+DROP SCHEMA IF EXISTS engineering_metrics;

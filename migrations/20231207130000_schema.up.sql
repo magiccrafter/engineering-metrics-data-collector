@@ -1,78 +1,68 @@
--- add up migration script here
-create schema engineering_metrics;
+-- Engineering Metrics Data Collector - Database Schema
+CREATE SCHEMA engineering_metrics;
 
-create table engineering_metrics.projects (
-    p_id varchar not null,
-    p_name varchar not null,
-    p_path varchar not null,
-    p_full_path varchar not null,
-    p_web_url varchar not null,
-    topics jsonb null,
-    primary key (p_id)
+-- Projects table
+CREATE TABLE engineering_metrics.projects (
+    p_id VARCHAR NOT NULL,
+    p_name VARCHAR NOT NULL,
+    p_path VARCHAR NOT NULL,
+    p_full_path VARCHAR NOT NULL,
+    p_web_url VARCHAR NOT NULL,
+    topics JSONB NULL,
+    PRIMARY KEY (p_id)
 );
-create index idx_projects_path on engineering_metrics.projects (p_path);
+CREATE INDEX idx_projects_path ON engineering_metrics.projects (p_path);
 
-create table engineering_metrics.issues (
-    issue_id varchar not null,
-    issue_iid varchar not null,
-    issue_title varchar not null,
-    issue_web_url varchar not null,
-    project_id varchar not null,
-    created_at timestamptz not null,
-    created_by varchar not null,
-    updated_at timestamptz not null,
-    updated_by varchar null,
-    closed_at timestamptz null,
-    labels jsonb null,
-    primary key (issue_id)
-);
-
-create table engineering_metrics.merge_requests (
-    mr_id varchar not null,
-    mr_iid varchar not null,
-    mr_title varchar not null,
-    mr_web_url varchar not null,
-    project_id varchar not null,
-    project_name varchar not null,
-    project_path varchar not null,
-    created_at timestamptz not null,
-    updated_at timestamptz not null,
-    merged_at timestamptz null,
-    created_by varchar not null,
-    merged_by varchar null,
-    approved boolean not null,
-    approved_by jsonb null,
-    diff_stats_summary jsonb null,
-    labels jsonb null,
-    primary key (mr_id)
+-- Merge requests table with AI summarization fields
+CREATE TABLE engineering_metrics.merge_requests (
+    mr_id VARCHAR NOT NULL,
+    mr_iid VARCHAR NOT NULL,
+    mr_title VARCHAR NOT NULL,
+    mr_web_url VARCHAR NOT NULL,
+    project_id VARCHAR NOT NULL,
+    project_name VARCHAR NOT NULL,
+    project_path VARCHAR NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    merged_at TIMESTAMPTZ NULL,
+    created_by VARCHAR NOT NULL,
+    merged_by VARCHAR NULL,
+    approved BOOLEAN NOT NULL,
+    approved_by JSONB NULL,
+    diff_stats_summary JSONB NULL,
+    labels JSONB NULL,
+    mr_ai_title VARCHAR NULL,
+    mr_ai_summary VARCHAR NULL,
+    mr_ai_model VARCHAR NULL,
+    mr_ai_category VARCHAR NULL,
+    PRIMARY KEY (mr_id)
 );
 
-create table engineering_metrics.closed_issues_on_merge (
-    issue_id varchar not null,
-    issue_iid varchar null,
-    mr_id varchar not null,
-    mr_iid varchar not null,
-    project_id varchar not null,
-    created_at timestamptz not null,
-    primary key (issue_id, mr_id)
+-- Collector runs table to track successful collection runs
+CREATE TABLE engineering_metrics.collector_runs (
+    id SERIAL NOT NULL,
+    last_successful_run_started_at TIMESTAMPTZ NOT NULL,
+    last_successful_run_completed_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (id)
 );
 
-create table engineering_metrics.external_issues (
-    issue_tracker varchar not null,
-    issue_id varchar not null,
-    issue_display_id varchar null,
-    title varchar not null,
-    web_url varchar not null,
-    imported_at timestamptz not null,
-    primary key (issue_tracker, issue_id)
-);
+INSERT INTO engineering_metrics.collector_runs (last_successful_run_started_at, last_successful_run_completed_at)
+VALUES ('2023-01-01T00:00:00Z', '2023-01-01T00:05:00Z');
 
-create table engineering_metrics.collector_runs (
-    id serial not null,
-    last_successful_run_started_at timestamptz not null,
-    last_successful_run_completed_at timestamptz not null,
-    primary key (id)
+-- Import progress table for resumable imports
+CREATE TABLE engineering_metrics.import_progress (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    group_full_path VARCHAR NOT NULL,
+    import_type VARCHAR NOT NULL,
+    updated_after TIMESTAMPTZ NOT NULL,
+    last_cursor VARCHAR NULL,
+    total_processed INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR NOT NULL DEFAULT 'in_progress',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ NULL,
+    error_message TEXT NULL,
+    UNIQUE (group_full_path, import_type, updated_after, status)
 );
-
-insert into engineering_metrics.collector_runs (last_successful_run_started_at, last_successful_run_completed_at)
-values ('2023-01-01T00:00:00Z', '2023-01-01T00:05:00Z');
+CREATE INDEX idx_import_progress_group_type ON engineering_metrics.import_progress (group_full_path, import_type);
+CREATE INDEX idx_import_progress_status ON engineering_metrics.import_progress (status);

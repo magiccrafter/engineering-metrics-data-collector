@@ -87,7 +87,8 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
 
     merge_request_handler
         .import_merge_requests(DUMMY, "2020-03-01T00:00:00Z")
-        .await;
+        .await
+        .expect("Failed to import merge requests");
 
     let mut conn = store.conn_pool.acquire().await.unwrap();
     // Only merged MRs are persisted (MR 777 is merged, MR 888 is not)
