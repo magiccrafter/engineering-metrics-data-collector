@@ -238,6 +238,18 @@ impl MergeRequestHandler {
         let mut after_pointer_token = Option::None;
         let mut total_imported = 0;
 
+        // Parse updated_after timestamp for filtering merged MRs
+        let updated_after_time = match OffsetDateTime::parse(updated_after, &Rfc3339) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!(
+                    "Failed to parse updated_after timestamp '{}': {}",
+                    updated_after, e
+                );
+                return;
+            }
+        };
+
         // Get AI configuration from context
         let ai_base_url = self.context.ai_base_url.clone();
         let ai_model = self.context.ai_model.clone();
@@ -291,10 +303,12 @@ impl MergeRequestHandler {
             );
 
             for mut merge_request in res.merge_requests {
-                // Only process merged MRs
-                if merge_request.merged_at.is_none() {
-                    continue;
-                }
+                // Only process MRs that were merged after the updated_after time
+                // This ensures we don't re-process old MRs that were just updated (e.g., commented on)
+                match merge_request.merged_at {
+                    Some(merged_at) if merged_at >= updated_after_time => {}
+                    _ => continue,
+                };
 
                 // Generate AI summary for merged MRs
                 match self
