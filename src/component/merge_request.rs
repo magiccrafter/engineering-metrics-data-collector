@@ -311,7 +311,7 @@ impl MergeRequestHandler {
             };
 
             let batch_count = res.merge_requests.len();
-            
+
             // Capture total count on first fetch (it's the same for all pages)
             if total_count.is_none() {
                 total_count = Some(res.total_count);
@@ -320,7 +320,7 @@ impl MergeRequestHandler {
                     group_full_path, res.total_count
                 );
             }
-            
+
             println!(
                 "Fetched {} merge requests in this batch for group={}",
                 batch_count, group_full_path
@@ -372,7 +372,7 @@ impl MergeRequestHandler {
             {
                 eprintln!("Failed to update import progress: {}", e);
             }
-            
+
             // Display progress with total count if available
             match total_count {
                 Some(total) => println!(
