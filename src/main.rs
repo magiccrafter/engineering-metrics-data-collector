@@ -123,9 +123,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "Starting merge requests import for group={}, updated_after={}",
                 &gfp2, &ua1
             );
-            merge_request_handler
+            if let Err(e) = merge_request_handler
                 .import_merge_requests(&gfp2, &ua1)
-                .await;
+                .await
+            {
+                eprintln!(
+                    "Merge request import failed for group={}: {}. Progress has been saved and will resume on next run.",
+                    &gfp2, e
+                );
+            }
         });
         futures.push(task);
 

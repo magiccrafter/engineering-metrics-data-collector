@@ -1,5 +1,6 @@
 use crate::client::gitlab_graphql_client::GitlabGraphQLError;
 use crate::client::gitlab_rest_client::GitlabRestError;
+use crate::component::import_progress::ImportProgressHandler;
 use crate::context::GitlabContext;
 use genai::adapter::AdapterKind;
 use genai::chat::{ChatMessage, ChatRequest};
@@ -233,22 +234,28 @@ impl MergeRequestHandler {
         Ok(())
     }
 
-    pub async fn import_merge_requests(&self, group_full_path: &str, updated_after: &str) {
-        let mut has_more_merge_requests = true;
-        let mut after_pointer_token = Option::None;
-        let mut total_imported = 0;
-
+    pub async fn import_merge_requests(
+        &self,
+        group_full_path: &str,
+        updated_after: &str,
+    ) -> Result<(), MergeRequestError> {
         // Parse updated_after timestamp for filtering merged MRs
-        let updated_after_time = match OffsetDateTime::parse(updated_after, &Rfc3339) {
-            Ok(t) => t,
-            Err(e) => {
-                eprintln!(
-                    "Failed to parse updated_after timestamp '{}': {}",
-                    updated_after, e
-                );
-                return;
-            }
+        let updated_after_time = OffsetDateTime::parse(updated_after, &Rfc3339)?;
+
+        // Initialize import progress handler
+        let import_progress_handler = ImportProgressHandler {
+            store: self.context.store.clone(),
         };
+
+        // Get or resume existing import
+        let import_progress = import_progress_handler
+            .get_or_create_import(group_full_path, "merge_requests", updated_after_time)
+            .await
+            .map_err(|e| MergeRequestError::DatabaseError(sqlx::Error::Protocol(e.to_string())))?;
+
+        let mut has_more_merge_requests = true;
+        let mut after_pointer_token = import_progress.last_cursor.clone();
+        let mut total_imported = import_progress.total_processed;
 
         // Get AI configuration from context
         let ai_base_url = self.context.ai_base_url.clone();
@@ -288,11 +295,15 @@ impl MergeRequestHandler {
             {
                 Ok(r) => r,
                 Err(e) => {
+                    // Mark the import as failed but preserve the cursor for resume
+                    let _ = import_progress_handler
+                        .mark_failed(import_progress.id, &e.to_string())
+                        .await;
                     eprintln!(
-                        "Failed to fetch merge requests for group {}: {}",
-                        group_full_path, e
+                        "Failed to fetch merge requests for group {}: {}. Progress saved at cursor: {:?}",
+                        group_full_path, e, after_pointer_token
                     );
-                    return;
+                    return Err(e);
                 }
             };
 
@@ -302,6 +313,7 @@ impl MergeRequestHandler {
                 batch_count, group_full_path
             );
 
+            let mut batch_processed = 0;
             for mut merge_request in res.merge_requests {
                 // Only process MRs that were merged after the updated_after time
                 // This ensures we don't re-process old MRs that were just updated (e.g., commented on)
@@ -335,16 +347,41 @@ impl MergeRequestHandler {
                         merge_request.mr_iid, e
                     );
                 }
+                batch_processed += 1;
                 total_imported += 1;
             }
+
+            // Update progress after each batch - this is our checkpoint
+            let next_cursor = res.page_info.end_cursor.as_deref();
+            if let Err(e) = import_progress_handler
+                .update_progress(import_progress.id, next_cursor, batch_processed)
+                .await
+            {
+                eprintln!("Failed to update import progress: {}", e);
+            }
+            println!(
+                "Checkpoint saved: cursor={:?}, total_processed={}",
+                next_cursor, total_imported
+            );
 
             after_pointer_token = res.page_info.end_cursor;
             has_more_merge_requests = res.page_info.has_next_page;
         }
+
+        // Mark import as completed
+        if let Err(e) = import_progress_handler
+            .mark_completed(import_progress.id)
+            .await
+        {
+            eprintln!("Failed to mark import as completed: {}", e);
+        }
+
         println!(
             "Done importing merge requests data for group={}. Total imported: {}",
             &group_full_path, total_imported
         );
+
+        Ok(())
     }
 
     async fn generate_ai_summary(
