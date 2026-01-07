@@ -440,6 +440,7 @@ async fn get_graphql_query_response_mock() -> &'static str {
                 "id": "gid://gitlab/Group/52263413",
                 "name": "cool_group",
                 "mergeRequests": {
+                    "count": 2,
                     "nodes": [{
                         "id": "gid://gitlab/MergeRequest/221742778",
                         "iid": "777",
