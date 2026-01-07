@@ -25,6 +25,7 @@ type Group {
 }
 
 type MergeRequestConnection {
+  count: Int!
   nodes: [MergeRequest]
   pageInfo: PageInfo!
 }

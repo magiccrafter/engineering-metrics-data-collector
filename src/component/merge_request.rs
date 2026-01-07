@@ -72,6 +72,7 @@ pub struct DiffStatsSummary {
 pub struct MergeRequestsWithPageInfo {
     pub merge_requests: Vec<MergeRequest>,
     pub page_info: PageInfo,
+    pub total_count: i32,
 }
 
 #[derive(Debug)]
@@ -177,6 +178,7 @@ impl MergeRequestHandler {
                 end_cursor: group_data.merge_requests.page_info.end_cursor,
                 has_next_page: group_data.merge_requests.page_info.has_next_page,
             },
+            total_count: group_data.merge_requests.count as i32,
         })
     }
 
@@ -256,6 +258,7 @@ impl MergeRequestHandler {
         let mut has_more_merge_requests = true;
         let mut after_pointer_token = import_progress.last_cursor.clone();
         let mut total_imported = import_progress.total_processed;
+        let mut total_count: Option<i32> = None;
 
         // Get AI configuration from context
         let ai_base_url = self.context.ai_base_url.clone();
@@ -308,6 +311,16 @@ impl MergeRequestHandler {
             };
 
             let batch_count = res.merge_requests.len();
+            
+            // Capture total count on first fetch (it's the same for all pages)
+            if total_count.is_none() {
+                total_count = Some(res.total_count);
+                println!(
+                    "Total merge requests to process for group={}: {}",
+                    group_full_path, res.total_count
+                );
+            }
+            
             println!(
                 "Fetched {} merge requests in this batch for group={}",
                 batch_count, group_full_path
@@ -359,10 +372,18 @@ impl MergeRequestHandler {
             {
                 eprintln!("Failed to update import progress: {}", e);
             }
-            println!(
-                "Checkpoint saved: cursor={:?}, total_processed={}",
-                next_cursor, total_imported
-            );
+            
+            // Display progress with total count if available
+            match total_count {
+                Some(total) => println!(
+                    "Progress: {}/{} merge requests processed for group={}",
+                    total_imported, total, group_full_path
+                ),
+                None => println!(
+                    "Progress: {} merge requests processed for group={}",
+                    total_imported, group_full_path
+                ),
+            }
 
             after_pointer_token = res.page_info.end_cursor;
             has_more_merge_requests = res.page_info.has_next_page;

@@ -13,6 +13,7 @@ query GroupMergeReqs($group_full_path: ID!, $updated_after: Time!, $after: Strin
       updatedAfter: $updated_after
       sort: CREATED_DESC
     ) {
+      count
       nodes {
         id
         iid
