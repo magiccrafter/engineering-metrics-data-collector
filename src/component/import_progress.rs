@@ -63,22 +63,30 @@ impl FromStr for ImportStatus {
 }
 
 impl ImportProgressHandler {
-    /// Find an existing in-progress import to resume, or create a new one
+    /// Find an existing in-progress or failed import to resume, or create a new one
     pub async fn get_or_create_import(
         &self,
         group_full_path: &str,
         import_type: &str,
         updated_after: OffsetDateTime,
     ) -> Result<ImportProgress, ImportProgressError> {
-        // First, try to find an existing in-progress import
-        if let Some(existing) = self
+        // First, try to find an existing in-progress or failed import
+        if let Some(mut existing) = self
             .find_in_progress_import(group_full_path, import_type)
             .await?
         {
             println!(
-                "Resuming existing import for group={}, type={}, cursor={:?}, processed={}",
-                group_full_path, import_type, existing.last_cursor, existing.total_processed
+                "Resuming existing import for group={}, type={}, cursor={:?}, processed={}, previous_status={:?}",
+                group_full_path, import_type, existing.last_cursor, existing.total_processed, existing.status
             );
+            
+            // If the import was previously failed, reset it to in_progress
+            if existing.status == ImportStatus::Failed {
+                self.reset_to_in_progress(existing.id).await?;
+                existing.status = ImportStatus::InProgress;
+                existing.error_message = None;
+            }
+            
             return Ok(existing);
         }
 
@@ -87,13 +95,14 @@ impl ImportProgressHandler {
             .await
     }
 
-    /// Find an in-progress import for the given group and type
+    /// Find a resumable import (in_progress or failed) for the given group and type
     pub async fn find_in_progress_import(
         &self,
         group_full_path: &str,
         import_type: &str,
     ) -> Result<Option<ImportProgress>, ImportProgressError> {
         let mut conn = self.store.conn_pool.acquire().await?;
+        // Look for both in_progress and failed imports to allow resuming from failures
         let row = sqlx::query(
             r#"
             SELECT id, group_full_path, import_type, updated_after, last_cursor, 
@@ -101,7 +110,7 @@ impl ImportProgressHandler {
             FROM engineering_metrics.import_progress
             WHERE group_full_path = $1 
               AND import_type = $2 
-              AND status = 'in_progress'
+              AND status IN ('in_progress', 'failed')
             ORDER BY started_at DESC
             LIMIT 1
             "#,
@@ -192,6 +201,28 @@ impl ImportProgressHandler {
         .bind(import_id)
         .bind(last_cursor)
         .bind(items_processed)
+        .bind(now)
+        .execute(&mut *conn)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Reset a failed import back to in_progress status for resumption
+    pub async fn reset_to_in_progress(&self, import_id: Uuid) -> Result<(), ImportProgressError> {
+        let mut conn = self.store.conn_pool.acquire().await?;
+        let now = OffsetDateTime::now_utc();
+
+        sqlx::query(
+            r#"
+            UPDATE engineering_metrics.import_progress
+            SET status = 'in_progress',
+                error_message = NULL,
+                last_activity_at = $2
+            WHERE id = $1
+            "#,
+        )
+        .bind(import_id)
         .bind(now)
         .execute(&mut *conn)
         .await?;
