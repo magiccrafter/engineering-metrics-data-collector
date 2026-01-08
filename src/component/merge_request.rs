@@ -236,6 +236,21 @@ impl MergeRequestHandler {
         Ok(())
     }
 
+    pub async fn merge_request_exists(&self, mr_id: &str) -> Result<bool, MergeRequestError> {
+        let mut conn = self.context.store.conn_pool.acquire().await?;
+
+        let result: Option<(i64,)> = sqlx::query_as(
+            r#"
+            SELECT 1 FROM engineering_metrics.merge_requests WHERE mr_id = $1
+            "#,
+        )
+        .bind(mr_id)
+        .fetch_optional(&mut *conn)
+        .await?;
+
+        Ok(result.is_some())
+    }
+
     pub async fn import_merge_requests(
         &self,
         group_full_path: &str,
@@ -341,6 +356,27 @@ impl MergeRequestHandler {
                     Some(merged_at) if merged_at >= effective_updated_after => {}
                     _ => continue,
                 };
+
+                // If upsert is disabled, skip existing merge requests
+                if !self.context.upsert_merge_requests {
+                    match self.merge_request_exists(&merge_request.mr_id).await {
+                        Ok(true) => {
+                            println!(
+                                "Skipping existing merge request {} (upsert disabled)",
+                                merge_request.mr_web_url
+                            );
+                            continue;
+                        }
+                        Ok(false) => {} // MR doesn't exist, proceed with ingestion
+                        Err(e) => {
+                            eprintln!(
+                                "Failed to check if merge request {} exists: {}",
+                                merge_request.mr_id, e
+                            );
+                            // Continue with ingestion on error to be safe
+                        }
+                    }
+                }
 
                 // Generate AI summary for merged MRs
                 match self
