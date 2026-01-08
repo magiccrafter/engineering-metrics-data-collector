@@ -42,6 +42,7 @@ async fn should_successfully_import_projects_from_gitlab_to_the_database() {
             ai_model: "llama3".to_string(),
             ai_api_key: "test-key".to_string(),
             ai_max_context_chars: 10000,
+            upsert_merge_requests: true,
         },
     };
 

@@ -51,6 +51,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("AI_MAX_CONTEXT_CHARS environment variable is not set.")
         .parse()
         .expect("AI_MAX_CONTEXT_CHARS must be a valid number");
+    let upsert_merge_requests: bool = env::var("UPSERT_MERGE_REQUESTS")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse()
+        .expect("UPSERT_MERGE_REQUESTS must be a valid boolean (true/false)");
 
     let gitlab_graphql_client =
         GitlabGraphQLClient::new(&authorization_header, gitlab_graphql_endpoint)?;
@@ -90,6 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ai_model,
         ai_api_key,
         ai_max_context_chars,
+        upsert_merge_requests,
     };
 
     let project_handler = ProjectHandler {
