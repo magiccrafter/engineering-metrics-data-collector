@@ -101,55 +101,80 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let group_full_paths: Vec<String> =
         group_full_paths.split(',').map(|s| s.to_string()).collect();
+    
+    let mut all_imports_successful = true;
+    
     for group_full_path in &group_full_paths {
         println!("Processing group: {}", group_full_path);
-        let mut futures = Vec::new();
 
-        // projects
+        // projects - spawn and track separately
         let project_handler = project_handler.clone();
         let gfp1 = group_full_path.clone();
-        let task = tokio::spawn(async move {
+        let project_task = tokio::spawn(async move {
             println!("Starting projects import for group={}", &gfp1);
             project_handler.import_projects(&gfp1).await;
         });
-        futures.push(task);
 
         // merge requests
         let gfp2 = group_full_path.clone();
         let ua1 = updated_after.clone();
         let merge_request_handler = merge_request_handler.clone();
-        let task = tokio::spawn(async move {
+        let mr_task = tokio::spawn(async move {
             println!(
                 "Starting merge requests import for group={}, updated_after={}",
                 &gfp2, &ua1
             );
-            if let Err(e) = merge_request_handler
+            match merge_request_handler
                 .import_merge_requests(&gfp2, &ua1)
                 .await
             {
-                eprintln!(
-                    "Merge request import failed for group={}: {}. Progress has been saved and will resume on next run.",
-                    &gfp2, e
-                );
+                Ok(()) => true,
+                Err(e) => {
+                    eprintln!(
+                        "Merge request import failed for group={}: {}. Progress has been saved and will resume on next run.",
+                        &gfp2, e
+                    );
+                    false
+                }
             }
         });
-        futures.push(task);
 
-        let results = futures::future::join_all(futures).await;
-        for (i, result) in results.into_iter().enumerate() {
-            if let Err(e) = result {
-                eprintln!("Task {} failed for group {}: {:?}", i, group_full_path, e);
+        // Wait for both tasks
+        let (project_result, mr_result) = tokio::join!(project_task, mr_task);
+        
+        if let Err(e) = project_result {
+            eprintln!("Project task failed for group {}: {:?}", group_full_path, e);
+            all_imports_successful = false;
+        }
+        
+        match mr_result {
+            Err(e) => {
+                eprintln!("MR task failed for group {}: {:?}", group_full_path, e);
+                all_imports_successful = false;
+            }
+            Ok(success) => {
+                if !success {
+                    all_imports_successful = false;
+                }
             }
         }
     }
 
     let end_time = OffsetDateTime::now_utc();
-    collector_runs_handler
-        .persist_successful_run(&collector_runs::CollectorRun {
-            last_successful_run_started_at: start_time,
-            last_successful_run_completed_at: end_time,
-        })
-        .await?;
+    
+    // Only record a successful run if ALL imports completed successfully
+    if all_imports_successful {
+        collector_runs_handler
+            .persist_successful_run(&collector_runs::CollectorRun {
+                last_successful_run_started_at: start_time,
+                last_successful_run_completed_at: end_time,
+            })
+            .await?;
+        println!("All imports completed successfully. Collector run recorded.");
+    } else {
+        println!("Some imports failed. Collector run NOT recorded - will resume from previous checkpoint on next run.");
+    }
+    
     let elapsed = end_time - start_time;
     println!("Time elapsed: {:?}", elapsed);
 
