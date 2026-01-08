@@ -255,6 +255,13 @@ impl MergeRequestHandler {
             .await
             .map_err(|e| MergeRequestError::DatabaseError(sqlx::Error::Protocol(e.to_string())))?;
 
+        // When resuming, use the original updated_after from the import_progress record
+        // This ensures we continue with the same query parameters
+        let effective_updated_after = import_progress.updated_after;
+        let effective_updated_after_str = effective_updated_after
+            .format(&Rfc3339)
+            .map_err(|e| MergeRequestError::MissingData(format!("Failed to format date: {}", e)))?;
+
         let mut has_more_merge_requests = true;
         let mut after_pointer_token = import_progress.last_cursor.clone();
         let mut total_imported = import_progress.total_processed;
@@ -291,7 +298,7 @@ impl MergeRequestHandler {
             let res = match self
                 .fetch_group_merge_requests(
                     group_full_path,
-                    updated_after,
+                    &effective_updated_after_str,
                     after_pointer_token.clone(),
                 )
                 .await
@@ -328,10 +335,10 @@ impl MergeRequestHandler {
 
             let mut batch_processed = 0;
             for mut merge_request in res.merge_requests {
-                // Only process MRs that were merged after the updated_after time
+                // Only process MRs that were merged after the effective_updated_after time
                 // This ensures we don't re-process old MRs that were just updated (e.g., commented on)
                 match merge_request.merged_at {
-                    Some(merged_at) if merged_at >= updated_after_time => {}
+                    Some(merged_at) if merged_at >= effective_updated_after => {}
                     _ => continue,
                 };
 
