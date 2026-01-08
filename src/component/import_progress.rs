@@ -79,14 +79,14 @@ impl ImportProgressHandler {
                 "Resuming existing import for group={}, type={}, cursor={:?}, processed={}, previous_status={:?}",
                 group_full_path, import_type, existing.last_cursor, existing.total_processed, existing.status
             );
-            
+
             // If the import was previously failed, reset it to in_progress
             if existing.status == ImportStatus::Failed {
                 self.reset_to_in_progress(existing.id).await?;
                 existing.status = ImportStatus::InProgress;
                 existing.error_message = None;
             }
-            
+
             return Ok(existing);
         }
 

@@ -101,9 +101,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let group_full_paths: Vec<String> =
         group_full_paths.split(',').map(|s| s.to_string()).collect();
-    
+
     let mut all_imports_successful = true;
-    
+
     for group_full_path in &group_full_paths {
         println!("Processing group: {}", group_full_path);
 
@@ -141,12 +141,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Wait for both tasks
         let (project_result, mr_result) = tokio::join!(project_task, mr_task);
-        
+
         if let Err(e) = project_result {
             eprintln!("Project task failed for group {}: {:?}", group_full_path, e);
             all_imports_successful = false;
         }
-        
+
         match mr_result {
             Err(e) => {
                 eprintln!("MR task failed for group {}: {:?}", group_full_path, e);
@@ -161,7 +161,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let end_time = OffsetDateTime::now_utc();
-    
+
     // Only record a successful run if ALL imports completed successfully
     if all_imports_successful {
         collector_runs_handler
@@ -174,7 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("Some imports failed. Collector run NOT recorded - will resume from previous checkpoint on next run.");
     }
-    
+
     let elapsed = end_time - start_time;
     println!("Time elapsed: {:?}", elapsed);
 
