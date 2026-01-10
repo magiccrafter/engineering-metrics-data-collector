@@ -239,7 +239,7 @@ impl MergeRequestHandler {
     pub async fn merge_request_exists(&self, mr_id: &str) -> Result<bool, MergeRequestError> {
         let mut conn = self.context.store.conn_pool.acquire().await?;
 
-        let result: Option<(i64,)> = sqlx::query_as(
+        let result: Option<(i32,)> = sqlx::query_as(
             r#"
             SELECT 1 FROM engineering_metrics.merge_requests WHERE mr_id = $1
             "#,
