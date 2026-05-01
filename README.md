@@ -64,6 +64,7 @@ GITLAB_API_TOKEN=your_token
 GITLAB_FULL_PATH_GROUP_LIST=group1,group2
 
 # Optional GitHub Copilot collector configuration
+# COPILOT_API_KEY — copilot, read:enterprise, read:org, read:user
 GITHUB_API_TOKEN=your_github_token
 GITHUB_API_ENDPOINT=https://api.github.com
 GITHUB_API_VERSION=2026-03-10
