@@ -1,0 +1,7 @@
+DROP TABLE IF EXISTS engineering_metrics.copilot_collector_runs;
+DROP TABLE IF EXISTS engineering_metrics.copilot_user_daily_model_feature_metrics;
+DROP TABLE IF EXISTS engineering_metrics.copilot_user_daily_language_model_metrics;
+DROP TABLE IF EXISTS engineering_metrics.copilot_user_daily_language_feature_metrics;
+DROP TABLE IF EXISTS engineering_metrics.copilot_user_daily_ide_metrics;
+DROP TABLE IF EXISTS engineering_metrics.copilot_user_daily_feature_metrics;
+DROP TABLE IF EXISTS engineering_metrics.copilot_user_daily_metrics;

@@ -1,5 +1,8 @@
 use crate::{
-    client::{gitlab_graphql_client::GitlabGraphQLClient, gitlab_rest_client::GitlabRestClient},
+    client::{
+        copilot_usage_metrics_client::CopilotUsageMetricsClient,
+        gitlab_graphql_client::GitlabGraphQLClient, gitlab_rest_client::GitlabRestClient,
+    },
     store::Store,
 };
 
@@ -13,4 +16,12 @@ pub struct GitlabContext {
     pub ai_api_key: String,
     pub ai_max_context_chars: usize,
     pub upsert_merge_requests: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CopilotContext {
+    pub store: Store,
+    pub copilot_usage_metrics_client: CopilotUsageMetricsClient,
+    pub github_api_version: String,
+    pub report_lag_days: i64,
 }
