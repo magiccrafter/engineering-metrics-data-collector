@@ -135,7 +135,7 @@ Integration tests require Docker. Tests use [wiremock](https://crates.io/crates/
 
 ```bash
 # Start local PostgreSQL
-docker run --name local-postgres -p 5432:5432 \
+docker run --name local-postgres -p 5433:5432 \
   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=postgres -d postgres:18
 
