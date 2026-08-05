@@ -116,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let project_handler = project_handler.clone();
         let gfp1 = group_full_path.clone();
         let project_task = tokio::spawn(async move {
-            println!("Starting projects import for group={}", &gfp1);
+            println!("Starting projects import for group={}", gfp1);
             project_handler.import_projects(&gfp1).await;
         });
 
@@ -127,7 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mr_task = tokio::spawn(async move {
             println!(
                 "Starting merge requests import for group={}, updated_after={}",
-                &gfp2, &ua1
+                gfp2, ua1
             );
             match merge_request_handler
                 .import_merge_requests(&gfp2, &ua1)
@@ -137,7 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(e) => {
                     eprintln!(
                         "Merge request import failed for group={}: {}. Progress has been saved and will resume on next run.",
-                        &gfp2, e
+                        gfp2, e
                     );
                     false
                 }

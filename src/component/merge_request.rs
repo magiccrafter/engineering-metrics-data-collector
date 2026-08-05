@@ -442,7 +442,7 @@ impl MergeRequestHandler {
 
         println!(
             "Done importing merge requests data for group={}. Total imported: {}",
-            &group_full_path, total_imported
+            group_full_path, total_imported
         );
 
         Ok(())

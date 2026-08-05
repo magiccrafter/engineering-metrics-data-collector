@@ -405,7 +405,7 @@ async fn should_fetch_from_gitlab_graphql_successfully() {
     let mut resp = surf::post(mock_server.uri()).await.unwrap();
     println!(
         "response body: {:?}, status: {:?}",
-        &mut resp.body_string().await.unwrap(),
+        resp.body_string().await.unwrap(),
         resp.status()
     );
     assert_eq!(resp.status(), 200);

@@ -139,7 +139,7 @@ impl ProjectHandler {
         }
         println!(
             "Done importing projects data for group={}.",
-            &group_full_path
+            group_full_path
         );
     }
 }
