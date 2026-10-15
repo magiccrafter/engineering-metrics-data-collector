@@ -13,3 +13,5 @@
 # Database
 - Postgres database version: 18 syntax and features should be used
 - use uuidv7 for uuid generation
+# Git
+- Do not add `Co-Authored-By` trailers (or any other AI attribution) to commit messages or PR descriptions.
