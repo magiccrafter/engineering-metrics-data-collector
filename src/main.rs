@@ -1,7 +1,9 @@
 use engineering_metrics_data_collector::client::gitlab_graphql_client::GitlabGraphQLClient;
 use engineering_metrics_data_collector::client::gitlab_rest_client::GitlabRestClient;
 use engineering_metrics_data_collector::component::collector_runs;
-use engineering_metrics_data_collector::component::merge_request::MergeRequestHandler;
+use engineering_metrics_data_collector::component::merge_request::{
+    check_ai_endpoint, MergeRequestHandler,
+};
 use engineering_metrics_data_collector::component::project::ProjectHandler;
 
 use engineering_metrics_data_collector::context::GitlabContext;
@@ -55,6 +57,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "false".to_string())
         .parse()
         .expect("UPSERT_MERGE_REQUESTS must be a valid boolean (true/false)");
+
+    // Fail fast if the AI endpoint is down, instead of importing MRs without AI summaries
+    println!("Checking AI endpoint {} (model: {})", ai_base_url, ai_model);
+    check_ai_endpoint(&ai_base_url, &ai_model, &ai_api_key).await?;
 
     let gitlab_graphql_client =
         GitlabGraphQLClient::new(&authorization_header, gitlab_graphql_endpoint)?;

@@ -3,7 +3,7 @@ use crate::client::gitlab_rest_client::GitlabRestError;
 use crate::component::import_progress::ImportProgressHandler;
 use crate::context::GitlabContext;
 use genai::adapter::AdapterKind;
-use genai::chat::{ChatMessage, ChatRequest};
+use genai::chat::{ChatMessage, ChatOptions, ChatRequest};
 use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
 use genai::{Client as GenAiClient, ModelIden, ServiceTarget};
 use serde::Deserialize;
@@ -27,6 +27,79 @@ pub enum MergeRequestError {
     DateParseError(#[from] time::error::Parse),
     #[error("Missing data: {0}")]
     MissingData(String),
+    #[error("AI endpoint unavailable: {0}")]
+    AiUnavailable(String),
+}
+
+/// Outcome of a failed AI summary generation.
+#[derive(Error, Debug)]
+pub enum AiSummaryError {
+    /// The AI endpoint could not be reached (connection refused, timeout, ...).
+    /// Continuing the import would persist MRs without AI fields, so it should be aborted.
+    #[error("AI endpoint unavailable: {0}")]
+    Unavailable(String),
+    /// The summary could not be generated for this MR only (bad response, GitLab error, ...).
+    #[error("{0}")]
+    Failed(String),
+}
+
+/// Returns true when the error means the AI endpoint itself is unreachable,
+/// as opposed to a problem with a single request.
+fn is_ai_connection_error(error: &genai::Error) -> bool {
+    match error {
+        genai::Error::WebModelCall { webc_error, .. }
+        | genai::Error::WebAdapterCall { webc_error, .. } => matches!(
+            webc_error,
+            genai::webc::Error::Reqwest(e) if e.is_connect() || e.is_timeout()
+        ),
+        _ => false,
+    }
+}
+
+/// Builds a GenAI client that routes every request to the configured OpenAI-compatible endpoint.
+pub fn build_ai_client(ai_base_url: &str, ai_api_key: &str) -> GenAiClient {
+    let ai_base_url = ai_base_url.to_string();
+    let ai_api_key = ai_api_key.to_string();
+
+    let target_resolver = ServiceTargetResolver::from_resolver_fn(
+        move |service_target: ServiceTarget| -> Result<ServiceTarget, genai::resolver::Error> {
+            let ServiceTarget { model, .. } = service_target;
+            let endpoint = Endpoint::from_owned(ai_base_url.clone());
+            let auth = AuthData::from_single(ai_api_key.clone());
+            let model = ModelIden::new(AdapterKind::Ollama, model.model_name);
+            Ok(ServiceTarget {
+                endpoint,
+                auth,
+                model,
+            })
+        },
+    );
+
+    GenAiClient::builder()
+        .with_service_target_resolver(target_resolver)
+        .build()
+}
+
+/// Sends a minimal chat request to verify the AI endpoint is reachable and serves the model.
+pub async fn check_ai_endpoint(
+    ai_base_url: &str,
+    ai_model: &str,
+    ai_api_key: &str,
+) -> Result<(), MergeRequestError> {
+    let ai_client = build_ai_client(ai_base_url, ai_api_key);
+    let chat_req = ChatRequest::new(vec![ChatMessage::user("Reply with OK.")]);
+    let options = ChatOptions::default().with_max_tokens(16);
+
+    ai_client
+        .exec_chat(ai_model, chat_req, Some(&options))
+        .await
+        .map(|_| ())
+        .map_err(|e| {
+            MergeRequestError::AiUnavailable(format!(
+                "health check against {} with model '{}' failed: {}",
+                ai_base_url, ai_model, e
+            ))
+        })
 }
 
 #[derive(Debug, Clone)]
@@ -236,12 +309,16 @@ impl MergeRequestHandler {
         Ok(())
     }
 
-    pub async fn merge_request_exists(&self, mr_id: &str) -> Result<bool, MergeRequestError> {
+    /// Returns true if the merge request is already stored together with its AI summary.
+    /// MRs stored without an AI summary (e.g. because the AI endpoint failed) are not
+    /// considered complete, so they get re-processed on the next run.
+    pub async fn merge_request_is_complete(&self, mr_id: &str) -> Result<bool, MergeRequestError> {
         let mut conn = self.context.store.conn_pool.acquire().await?;
 
         let result: Option<(i32,)> = sqlx::query_as(
             r#"
-            SELECT 1 FROM engineering_metrics.merge_requests WHERE mr_id = $1
+            SELECT 1 FROM engineering_metrics.merge_requests
+            WHERE mr_id = $1 AND mr_ai_summary IS NOT NULL
             "#,
         )
         .bind(mr_id)
@@ -282,32 +359,8 @@ impl MergeRequestHandler {
         let mut total_imported = import_progress.total_processed;
         let mut total_count: Option<i32> = None;
 
-        // Get AI configuration from context
-        let ai_base_url = self.context.ai_base_url.clone();
         let ai_model = self.context.ai_model.clone();
-        let ai_api_key = self.context.ai_api_key.clone();
-
-        // Configure GenAI client with custom ServiceTargetResolver
-        let ai_base_url_clone = ai_base_url.clone();
-        let ai_api_key_clone = ai_api_key.clone();
-
-        let target_resolver = ServiceTargetResolver::from_resolver_fn(
-            move |service_target: ServiceTarget| -> Result<ServiceTarget, genai::resolver::Error> {
-                let ServiceTarget { model, .. } = service_target;
-                let endpoint = Endpoint::from_owned(ai_base_url_clone.clone());
-                let auth = AuthData::from_single(ai_api_key_clone.clone());
-                let model = ModelIden::new(AdapterKind::Ollama, model.model_name);
-                Ok(ServiceTarget {
-                    endpoint,
-                    auth,
-                    model,
-                })
-            },
-        );
-
-        let ai_client = GenAiClient::builder()
-            .with_service_target_resolver(target_resolver)
-            .build();
+        let ai_client = build_ai_client(&self.context.ai_base_url, &self.context.ai_api_key);
 
         while has_more_merge_requests {
             let res = match self
@@ -357,9 +410,9 @@ impl MergeRequestHandler {
                     _ => continue,
                 };
 
-                // If upsert is disabled, skip existing merge requests
+                // If upsert is disabled, skip merge requests that are already fully stored
                 if !self.context.upsert_merge_requests {
-                    match self.merge_request_exists(&merge_request.mr_id).await {
+                    match self.merge_request_is_complete(&merge_request.mr_id).await {
                         Ok(true) => {
                             println!(
                                 "Skipping existing merge request {} (upsert disabled)",
@@ -367,7 +420,7 @@ impl MergeRequestHandler {
                             );
                             continue;
                         }
-                        Ok(false) => {} // MR doesn't exist, proceed with ingestion
+                        Ok(false) => {} // MR missing or without AI summary, proceed with ingestion
                         Err(e) => {
                             eprintln!(
                                 "Failed to check if merge request {} exists: {}",
@@ -389,10 +442,26 @@ impl MergeRequestHandler {
                         merge_request.mr_ai_category = Some(category);
                         merge_request.mr_ai_model = Some(ai_model.clone());
                     }
-                    Err(e) => {
+                    Err(AiSummaryError::Unavailable(msg)) => {
+                        // Abort instead of persisting MRs without AI fields.
+                        // The cursor of the current batch is kept, so the next run resumes here.
+                        let error = MergeRequestError::AiUnavailable(format!(
+                            "{} (while processing MR {})",
+                            msg, merge_request.mr_web_url
+                        ));
+                        let _ = import_progress_handler
+                            .mark_failed(import_progress.id, &error.to_string())
+                            .await;
+                        eprintln!(
+                            "Aborting merge requests import for group {}: AI endpoint unavailable. Progress saved at cursor: {:?}",
+                            group_full_path, after_pointer_token
+                        );
+                        return Err(error);
+                    }
+                    Err(AiSummaryError::Failed(msg)) => {
                         eprintln!(
                             "Failed to generate AI summary for MR {}: {}",
-                            merge_request.mr_web_url, e
+                            merge_request.mr_web_url, msg
                         );
                     }
                 }
@@ -453,12 +522,13 @@ impl MergeRequestHandler {
         ai_client: &GenAiClient,
         ai_model: &str,
         mr: &MergeRequest,
-    ) -> Result<(String, String, String), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(String, String, String), AiSummaryError> {
         let changes = self
             .context
             .gitlab_rest_client
             .fetch_merge_request_changes(&mr.project_id, &mr.mr_iid)
-            .await?;
+            .await
+            .map_err(|e| AiSummaryError::Failed(e.to_string()))?;
 
         // Convert changes to string representation, limited to configured max characters
         let mut changes_diff = String::new();
@@ -522,7 +592,7 @@ PR Changes:
         );
 
         const MAX_RETRIES: u32 = 3;
-        let mut last_error: Option<Box<dyn std::error::Error + Send + Sync>> = None;
+        let mut last_error: Option<AiSummaryError> = None;
 
         for attempt in 1..=MAX_RETRIES {
             let chat_req = ChatRequest::new(vec![ChatMessage::user(prompt.clone())]);
@@ -534,7 +604,11 @@ PR Changes:
                         "AI request failed (attempt {}/{}): {}",
                         attempt, MAX_RETRIES, e
                     );
-                    last_error = Some(Box::new(e));
+                    last_error = Some(if is_ai_connection_error(&e) {
+                        AiSummaryError::Unavailable(e.to_string())
+                    } else {
+                        AiSummaryError::Failed(e.to_string())
+                    });
                     continue;
                 }
             };
@@ -558,15 +632,13 @@ PR Changes:
                         "Failed to parse AI response as JSON (attempt {}/{}): {}. Response: {}",
                         attempt, MAX_RETRIES, e, clean_content
                     );
-                    last_error = Some(Box::new(e));
+                    last_error = Some(AiSummaryError::Failed(e.to_string()));
                 }
             }
         }
 
         Err(last_error.unwrap_or_else(|| {
-            Box::new(std::io::Error::other(
-                "AI summary generation failed after all retries",
-            ))
+            AiSummaryError::Failed("AI summary generation failed after all retries".to_string())
         }))
     }
 }

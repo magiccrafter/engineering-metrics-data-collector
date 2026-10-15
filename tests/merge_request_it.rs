@@ -165,6 +165,258 @@ async fn should_successfully_import_merge_requests_from_gitlab_to_the_database()
     // so we only verify the merged MR is persisted correctly
 }
 
+/// Starts GitLab GraphQL + REST mock servers serving the merged MR 777 and non-merged MR 888.
+async fn start_gitlab_mock_servers() -> (MockServer, MockServer) {
+    let graphql_mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(get_graphql_query_response_mock().await),
+        )
+        .mount(&graphql_mock_server)
+        .await;
+
+    let rest_mock_server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/projects/52263413/merge_requests/777/closes_issues"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(get_rest_empty_response_mock().await),
+        )
+        .mount(&rest_mock_server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects/52263413/merge_requests/777/changes"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(get_rest_mr_changes_response_mock().await),
+        )
+        .mount(&rest_mock_server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/projects/52263413/merge_requests/888/closes_issues"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(get_rest_closed_issues_on_merge_for_mr_888_response_mock().await),
+        )
+        .mount(&rest_mock_server)
+        .await;
+
+    (graphql_mock_server, rest_mock_server)
+}
+
+/// Starts an AI mock server answering every chat completion with a valid summary.
+async fn start_ai_mock_server() -> MockServer {
+    let ai_mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            serde_json::from_str::<serde_json::Value>(get_ai_response_mock().await).unwrap(),
+        ))
+        .mount(&ai_mock_server)
+        .await;
+    ai_mock_server
+}
+
+/// Returns a base URL pointing at a local port nothing is listening on.
+fn unreachable_ai_base_url() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    format!("http://127.0.0.1:{}/v1", port)
+}
+
+fn merge_request_handler(
+    store: &Store,
+    rest_uri: String,
+    graphql_uri: String,
+    ai_base_url: String,
+    upsert_merge_requests: bool,
+) -> merge_request::MergeRequestHandler {
+    const DUMMY: &String = &String::new();
+    merge_request::MergeRequestHandler {
+        context: GitlabContext {
+            store: store.to_owned(),
+            gitlab_rest_client: GitlabRestClient::new(DUMMY, rest_uri).unwrap(),
+            gitlab_graphql_client: GitlabGraphQLClient::new(DUMMY, graphql_uri).unwrap(),
+            ai_base_url,
+            ai_model: "llama3".to_string(),
+            ai_api_key: "test-key".to_string(),
+            ai_max_context_chars: 10000,
+            upsert_merge_requests,
+        },
+    }
+}
+
+async fn start_store() -> (
+    testcontainers::ContainerAsync<postgres_container::Postgres>,
+    Store,
+) {
+    let node = postgres_container::Postgres::default()
+        .start()
+        .await
+        .unwrap();
+    let port = node.get_host_port_ipv4(5432).await.unwrap();
+    let store = Store::new(&format!(
+        "postgres://postgres:postgres@localhost:{}/postgres",
+        port
+    ))
+    .await;
+    store.migrate().await.unwrap();
+    (node, store)
+}
+
+#[tokio::test]
+async fn should_abort_import_without_persisting_when_ai_endpoint_is_unreachable() {
+    let (_node, store) = start_store().await;
+    let (graphql_mock_server, rest_mock_server) = start_gitlab_mock_servers().await;
+
+    let handler = merge_request_handler(
+        &store,
+        rest_mock_server.uri(),
+        graphql_mock_server.uri(),
+        unreachable_ai_base_url(),
+        false,
+    );
+
+    let result = handler
+        .import_merge_requests("group", "2020-03-01T00:00:00Z")
+        .await;
+    assert!(matches!(
+        result,
+        Err(merge_request::MergeRequestError::AiUnavailable(_))
+    ));
+
+    let mut conn = store.conn_pool.acquire().await.unwrap();
+    let mr_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM engineering_metrics.merge_requests")
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+    assert_eq!(mr_count, 0);
+
+    let row = sqlx::query(
+        "SELECT status, error_message FROM engineering_metrics.import_progress WHERE group_full_path = 'group'",
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .unwrap();
+    assert_eq!(row.get::<String, _>("status"), "failed");
+    assert!(row
+        .get::<Option<String>, _>("error_message")
+        .unwrap()
+        .contains("AI endpoint unavailable"));
+}
+
+#[tokio::test]
+async fn should_reprocess_existing_mr_without_ai_summary_when_upsert_disabled() {
+    let (_node, store) = start_store().await;
+    let (graphql_mock_server, rest_mock_server) = start_gitlab_mock_servers().await;
+    let ai_mock_server = start_ai_mock_server().await;
+
+    // MR 777 already stored without AI fields, e.g. by a run where the AI endpoint was down
+    let mut conn = store.conn_pool.acquire().await.unwrap();
+    sqlx::query(
+        "INSERT INTO engineering_metrics.merge_requests (mr_id, mr_iid, mr_title, mr_web_url, project_id, project_name, project_path, created_at, updated_at, created_by, approved)
+         VALUES ('gid://gitlab/MergeRequest/221742778', '777', 'old title', 'https://example.com', '52263413', 'cool_project_1', 'cool-project', '2020-03-02T09:00:00Z', '2020-03-02T09:00:00Z', 'dev1', false)",
+    )
+    .execute(&mut *conn)
+    .await
+    .unwrap();
+
+    let handler = merge_request_handler(
+        &store,
+        rest_mock_server.uri(),
+        graphql_mock_server.uri(),
+        ai_mock_server.uri(),
+        false,
+    );
+    handler
+        .import_merge_requests("group", "2020-03-01T00:00:00Z")
+        .await
+        .expect("Failed to import merge requests");
+
+    let row = sqlx::query(
+        "SELECT mr_title, mr_ai_summary, mr_ai_category FROM engineering_metrics.merge_requests WHERE mr_id = 'gid://gitlab/MergeRequest/221742778'",
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .unwrap();
+    assert_eq!(
+        row.get::<String, _>("mr_title"),
+        "Resolve \"pipeline check\""
+    );
+    assert_eq!(
+        row.get::<Option<String>, _>("mr_ai_summary"),
+        Some("Added a pipeline check feature to validate CI/CD configurations.".to_string())
+    );
+    assert_eq!(
+        row.get::<Option<String>, _>("mr_ai_category"),
+        Some("Feature".to_string())
+    );
+}
+
+#[tokio::test]
+async fn should_skip_existing_mr_with_ai_summary_when_upsert_disabled() {
+    let (_node, store) = start_store().await;
+    let (graphql_mock_server, rest_mock_server) = start_gitlab_mock_servers().await;
+
+    // The AI endpoint must not be called for an MR that is already complete
+    let ai_mock_server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(500))
+        .expect(0)
+        .mount(&ai_mock_server)
+        .await;
+
+    let mut conn = store.conn_pool.acquire().await.unwrap();
+    sqlx::query(
+        "INSERT INTO engineering_metrics.merge_requests (mr_id, mr_iid, mr_title, mr_web_url, project_id, project_name, project_path, created_at, updated_at, created_by, approved, mr_ai_summary)
+         VALUES ('gid://gitlab/MergeRequest/221742778', '777', 'old title', 'https://example.com', '52263413', 'cool_project_1', 'cool-project', '2020-03-02T09:00:00Z', '2020-03-02T09:00:00Z', 'dev1', false, 'existing summary')",
+    )
+    .execute(&mut *conn)
+    .await
+    .unwrap();
+
+    let handler = merge_request_handler(
+        &store,
+        rest_mock_server.uri(),
+        graphql_mock_server.uri(),
+        ai_mock_server.uri(),
+        false,
+    );
+    handler
+        .import_merge_requests("group", "2020-03-01T00:00:00Z")
+        .await
+        .expect("Failed to import merge requests");
+
+    let row = sqlx::query(
+        "SELECT mr_title, mr_ai_summary FROM engineering_metrics.merge_requests WHERE mr_id = 'gid://gitlab/MergeRequest/221742778'",
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .unwrap();
+    assert_eq!(row.get::<String, _>("mr_title"), "old title");
+    assert_eq!(
+        row.get::<Option<String>, _>("mr_ai_summary"),
+        Some("existing summary".to_string())
+    );
+}
+
+#[tokio::test]
+async fn should_pass_ai_endpoint_check_when_endpoint_responds() {
+    let ai_mock_server = start_ai_mock_server().await;
+    merge_request::check_ai_endpoint(&ai_mock_server.uri(), "llama3", "test-key")
+        .await
+        .expect("AI endpoint check should pass");
+}
+
+#[tokio::test]
+async fn should_fail_ai_endpoint_check_when_endpoint_is_unreachable() {
+    let result =
+        merge_request::check_ai_endpoint(&unreachable_ai_base_url(), "llama3", "test-key").await;
+    assert!(matches!(
+        result,
+        Err(merge_request::MergeRequestError::AiUnavailable(_))
+    ));
+}
+
 #[tokio::test]
 async fn should_persist_and_select_one_not_merged_mr_successfully() {
     // testcontainers 0.22 uses AsyncRunner trait
